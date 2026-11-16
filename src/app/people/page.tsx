@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { PageHead } from "@/components/page-head";
+import { Avatar } from "@/components/avatar";
 import { getTopContributors } from "@/server/proposals";
 import { ago } from "@/lib/format";
 
@@ -41,8 +42,7 @@ export default async function PeoplePage() {
                 <Link key={p.actor} href={`/user/${p.actor}`} className="ledger-row gap-4 px-4">
                   <span className="w-7 shrink-0 text-right font-mono text-xs text-ink-faint">{i + 1}</span>
                   <span className="flex min-w-0 flex-1 items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`https://github.com/${p.actor}.png?size=64`} alt="" width={28} height={28} loading="lazy" className="size-7 shrink-0 rounded-full border border-border bg-surface-2 object-cover" />
+                    <Avatar handle={p.actor} label={p.actor} px={28} className="size-7 shrink-0" />
                     <span className="truncate text-[0.95rem] font-medium text-ink">{p.actor}</span>
                   </span>
                   <span className="hidden w-16 shrink-0 text-right font-mono text-[0.8rem] text-ink-muted sm:block">{p.reviews.toLocaleString()}</span>

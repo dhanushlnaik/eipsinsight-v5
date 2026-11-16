@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ChevronRight, Github } from "lucide-react";
 import { Badge } from "@/components/badge";
+import { Avatar } from "@/components/avatar";
 import { ProposalRow } from "@/components/proposal-row";
 import { getContributor } from "@/server/contributor";
 import { fmtDate } from "@/lib/format";
@@ -46,8 +47,7 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
           </p>
 
           <div className="mt-6 flex items-center gap-5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`https://github.com/${actor}.png?size=176`} alt="" width={88} height={88} className="size-[72px] shrink-0 rounded-full border border-border bg-surface-2 object-cover sm:size-[88px]" />
+            <Avatar handle={actor} label={actor} px={88} className="size-[72px] shrink-0 sm:size-[88px]" />
             <div className="min-w-0">
               <h1 className="t-h1 truncate text-ink">{actor}</h1>
               <a href={`https://github.com/${actor}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 font-mono text-sm text-ink-muted transition-colors hover:text-ink">

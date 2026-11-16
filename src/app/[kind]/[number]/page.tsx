@@ -16,6 +16,7 @@ import { fmtDate, bucketToken } from "@/lib/format";
 import { STATUS_MEANING, meaningFor } from "@/lib/meanings";
 import { getEntity, findKind, type Kind } from "@/server/entity";
 import { OnThisPage, type RailItem } from "@/components/on-this-page";
+import { Avatar } from "@/components/avatar";
 import { PlainLanguage, Stakeholders, Enterprise, Faqs } from "@/components/curation";
 
 export const revalidate = 300;

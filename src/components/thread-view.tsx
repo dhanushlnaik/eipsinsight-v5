@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Github, GitPullRequest, CircleDot } from "lucide-react";
 import { Badge } from "@/components/badge";
 import { CopyLink } from "@/components/copy-link";
+import { Avatar } from "@/components/avatar";
 import { SectionHead } from "@/components/section-head";
 import { ProposalRow } from "@/components/proposal-row";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -66,8 +67,7 @@ export function ThreadView({ t }: { t: Thread }) {
               <div className="mt-7 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
                 {t.author ? (
                   <Link href={`/user/${t.author}`} className="group flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`https://github.com/${t.author}.png?size=56`} alt="" width={28} height={28} className="size-7 rounded-full border border-border bg-surface-2 object-cover" />
+                    <Avatar handle={t.author} label={t.author} px={28} className="size-7" />
                     <span className="text-sm text-ink-muted">
                       Opened by <span className="font-medium text-ink underline decoration-border-strong underline-offset-4 group-hover:decoration-ink">{t.author}</span>
                       {t.created_at && <span className="text-ink-faint"> · {ago(t.created_at)} ago</span>}
@@ -129,8 +129,7 @@ export function ThreadView({ t }: { t: Thread }) {
               {t.reviews.map((r) => (
                 <li key={r.reviewer}>
                   <Link href={`/user/${r.reviewer}`} className="ledger-row">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`https://github.com/${r.reviewer}.png?size=56`} alt="" width={28} height={28} loading="lazy" className="size-7 shrink-0 rounded-full border border-border bg-surface-2 object-cover" />
+                    <Avatar handle={r.reviewer} label={r.reviewer} px={28} className="size-7 shrink-0" />
                     <span className="min-w-0 flex-1 truncate text-[0.95rem] font-medium text-ink">{r.reviewer}</span>
                     <Badge value={humanize(r.state)} tip={false} className="shrink-0" />
                     <span className="hidden w-24 shrink-0 text-right font-mono text-xs text-ink-faint sm:block">{fmtDate(r.at)}</span>
