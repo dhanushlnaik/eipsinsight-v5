@@ -116,7 +116,7 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
   return (
     <main>
       {/* ── Masthead: the document's identity ───────────────────── */}
-      <header className="masthead masthead-shadow border-b border-border">
+      <header className="masthead border-b border-border">
         <div className="wrap">
           <div className="relative overflow-hidden pb-8 pt-7 sm:pt-9">
           <span aria-hidden className="ghost-numeral absolute -bottom-12 right-0 hidden md:block">{e.number}</span>

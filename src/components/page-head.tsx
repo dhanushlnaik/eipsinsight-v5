@@ -11,8 +11,8 @@ export function PageHead({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="masthead masthead-shadow border-b border-border">
-      <div className="wrap py-10 sm:py-14">
+    <header className="masthead border-b border-border">
+      <div className="wrap py-8 sm:py-11">
         <p className="eyebrow">{eyebrow}</p>
         <h1 className="t-h1 mt-4 text-ink">{title}</h1>
         {lead && <p className="t-lead mt-4 max-w-2xl">{lead}</p>}

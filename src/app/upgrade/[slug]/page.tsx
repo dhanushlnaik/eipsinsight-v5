@@ -66,7 +66,7 @@ export default async function UpgradePage({ params }: { params: Promise<{ slug: 
   return (
     <main>
       {/* ── Masthead ─────────────────────────────────────────── */}
-      <header className="masthead masthead-shadow border-b border-border">
+      <header className="masthead border-b border-border">
         <div className="wrap pt-7 sm:pt-9">
           <nav className="flex items-center gap-1.5 font-mono text-xs text-ink-faint" aria-label="Breadcrumb">
             <Link href="/" className="transition-colors hover:text-ink">Home</Link>

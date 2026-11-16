@@ -54,7 +54,7 @@ export default async function DevnetPage({ params }: { params: Promise<{ id: str
 
   return (
     <main>
-      <header className="masthead masthead-shadow border-b border-border">
+      <header className="masthead border-b border-border">
         <div className="wrap pt-7 sm:pt-9">
           <nav className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-ink-faint" aria-label="Breadcrumb">
             <Link href="/upgrades" className="transition-colors hover:text-ink">Upgrades</Link>

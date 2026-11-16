@@ -39,7 +39,7 @@ export function ThreadView({ t }: { t: Thread }) {
 
   return (
     <main>
-      <header className="masthead masthead-shadow border-b border-border">
+      <header className="masthead border-b border-border">
         <div className="wrap">
           <div className="relative overflow-hidden pb-8 pt-7 sm:pt-9">
             <span aria-hidden className="ghost-numeral absolute -bottom-12 right-0 hidden md:block">{t.number}</span>
