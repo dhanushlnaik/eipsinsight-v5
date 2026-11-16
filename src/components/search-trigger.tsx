@@ -18,7 +18,8 @@ export function SearchTrigger() {
         <span className="flex-1 truncate text-left">Search anything</span>
         <kbd className="kbd">⌘K</kbd>
       </button>
-      <button type="button" onClick={open} className="icon-btn md:hidden" aria-label="Open search">
+      {/* Only in the sm–md gap: below sm the bottom tab bar carries search, above md the field shows. */}
+      <button type="button" onClick={open} className="icon-btn hidden sm:grid md:hidden" aria-label="Open search">
         <Search className="size-4" />
       </button>
     </>
