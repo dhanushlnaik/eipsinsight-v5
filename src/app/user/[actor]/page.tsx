@@ -27,13 +27,14 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
   const c = await getContributor(actor);
   if (!c) notFound();
 
+  const SCORE_TIP = "A weighted total of commits, pull requests, reviews and comments across the EIP, ERC and RIP repositories.";
   const stats = [
-    { label: "Score", value: c.totalScore },
     { label: "PRs opened", value: c.prsCreated },
     { label: "PRs merged", value: c.prsMerged },
     { label: "Reviews", value: c.reviews },
     { label: "Comments", value: c.comments },
     { label: "Commits", value: c.commits },
+    { label: "Score", value: c.totalScore, tip: SCORE_TIP },
   ];
 
   return (
@@ -66,12 +67,19 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
           )}
 
           <dl className="mt-9 grid grid-cols-3 border-t border-border lg:grid-cols-6">
-            {stats.map((s, i) => (
-              <div key={s.label} className={`py-5 ${i % 3 !== 0 ? "border-l border-border pl-4 sm:pl-6" : ""} ${i >= 3 ? "border-t border-border lg:border-t-0" : ""} ${i === 3 ? "lg:border-l lg:pl-6" : ""}`}>
-                <dt className="eyebrow">{s.label}</dt>
-                <dd className="mt-2 font-serif text-[1.6rem] leading-none text-ink tnum sm:text-[1.9rem]">{s.value.toLocaleString()}</dd>
-              </div>
-            ))}
+            {stats.map((s, i) => {
+              const muted = s.label === "Score";
+              return (
+                <div key={s.label} className={`py-5 ${i % 3 !== 0 ? "border-l border-border pl-4 sm:pl-6" : ""} ${i >= 3 ? "border-t border-border lg:border-t-0" : ""} ${i === 3 ? "lg:border-l lg:pl-6" : ""}`}>
+                  <dt className="eyebrow">
+                    {s.tip ? (
+                      <span className="tip cursor-help border-b border-dotted border-border" data-tip={s.tip} tabIndex={0}>{s.label}</span>
+                    ) : s.label}
+                  </dt>
+                  <dd className={`mt-2 font-serif leading-none tnum ${muted ? "text-[1.25rem] text-ink-muted sm:text-[1.4rem]" : "text-[1.6rem] text-ink sm:text-[1.9rem]"}`}>{s.value.toLocaleString()}</dd>
+                </div>
+              );
+            })}
           </dl>
         </div>
       </header>
@@ -85,8 +93,8 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
               {c.repos.map((r) => (
                 <div key={r.repo} className="card p-4">
                   <p className="truncate font-mono text-xs text-ink-faint">{r.repo}</p>
-                  <p className="mt-1.5 font-serif text-[1.5rem] leading-none text-ink tnum">{r.score.toLocaleString()}</p>
-                  <p className="mt-2 text-xs text-ink-muted">{r.reviews.toLocaleString()} reviews · {r.comments.toLocaleString()} comments · {r.commits.toLocaleString()} commits</p>
+                  <p className="mt-1.5 font-serif text-[1.5rem] leading-none text-ink tnum">{r.reviews.toLocaleString()} <span className="font-sans text-xs font-normal text-ink-muted">reviews</span></p>
+                  <p className="mt-2 text-xs text-ink-muted">{r.comments.toLocaleString()} comments · {r.commits.toLocaleString()} commits · <span className="tnum">{r.score.toLocaleString()}</span> score</p>
                 </div>
               ))}
             </div>

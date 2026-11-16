@@ -24,6 +24,7 @@ export default async function PeoplePage() {
           <h2 className="t-h3 text-ink">Most active</h2>
           <Link href="/search" className="eyebrow transition-colors hover:text-ink">Find someone by name</Link>
         </div>
+        <p className="mt-1.5 text-sm text-ink-muted">Ranked by reviews and comments on the EIP, ERC and RIP repositories. Score is a weighted roll-up of that activity.</p>
 
         {people.length === 0 ? (
           <div className="card-quiet mt-5 p-8 text-center text-sm text-ink-muted">Contributor data is unavailable right now.</div>
@@ -32,10 +33,12 @@ export default async function PeoplePage() {
             <div className="eyebrow flex items-center gap-4 border-b border-border px-4 py-2.5">
               <span className="w-7 text-right">#</span>
               <span className="flex-1">Contributor</span>
-              <span className="hidden w-16 text-right sm:block">Reviews</span>
+              <span className="w-16 text-right">Reviews</span>
               <span className="hidden w-20 text-right sm:block">Comments</span>
               <span className="hidden w-16 text-right md:block">Active</span>
-              <span className="w-20 text-right">Score</span>
+              <span className="w-20 text-right">
+                <span className="tip cursor-help border-b border-dotted border-border" data-tip="A weighted total of commits, pull requests, reviews and comments across the EIP, ERC and RIP repositories." tabIndex={0}>Score</span>
+              </span>
             </div>
             <div className="ledger">
               {people.map((p, i) => (
@@ -45,10 +48,10 @@ export default async function PeoplePage() {
                     <Avatar handle={p.actor} label={p.actor} px={28} className="size-7 shrink-0" />
                     <span className="truncate text-[0.95rem] font-medium text-ink">{p.actor}</span>
                   </span>
-                  <span className="hidden w-16 shrink-0 text-right font-mono text-[0.8rem] text-ink-muted sm:block">{p.reviews.toLocaleString()}</span>
+                  <span className="w-16 shrink-0 text-right font-mono text-[0.85rem] font-medium text-ink">{p.reviews.toLocaleString()}</span>
                   <span className="hidden w-20 shrink-0 text-right font-mono text-[0.8rem] text-ink-muted sm:block">{p.comments.toLocaleString()}</span>
                   <span className="hidden w-16 shrink-0 text-right font-mono text-xs text-ink-faint md:block">{p.last_activity ? ago(p.last_activity) : ""}</span>
-                  <span className="w-20 shrink-0 text-right font-mono text-[0.85rem] font-medium text-ink">{p.score.toLocaleString()}</span>
+                  <span className="w-20 shrink-0 text-right font-mono text-[0.8rem] text-ink-faint">{p.score.toLocaleString()}</span>
                 </Link>
               ))}
             </div>
