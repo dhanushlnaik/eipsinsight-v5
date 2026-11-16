@@ -35,19 +35,82 @@ export interface CallDecisionRef {
   stamp: string | null;
 }
 
+export interface HighlightTopic {
+  topic: string;
+  items: CallMoment[];
+}
+
+export interface TranscriptCue {
+  seconds: number;
+  stamp: string;
+  speaker: string | null;
+  text: string;
+}
+
 export interface CallDetail {
   series: string;
   number: string | null;
   title: string;
   date: string | null;
   videoUrl: string | null;
+  youtubeId: string | null;
   issueNumber: number | null;
   summary: string | null;
   decisions: CallMoment[];
   actionItems: CallAction[];
   targets: CallMoment[];
+  highlights: HighlightTopic[];
   decisionRefs: CallDecisionRef[];
+  eipsDiscussed: number[];
+  transcript: TranscriptCue[] | null;
   hasTranscript: boolean;
+}
+
+/** Extract an 11-char YouTube id from the common URL shapes. */
+export function youtubeId(url: string | null): string | null {
+  if (!url) return null;
+  const m = url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i);
+  return m ? m[1] : null;
+}
+
+const TOPIC_ACRONYMS = new Set([
+  "pq", "ai", "el", "cl", "dc", "eip", "erc", "rip", "tls", "api", "rpc", "mev",
+  "da", "zk", "zkevm", "evm", "ssz", "bls", "kzg", "pbs", "epbs", "focil", "aa",
+  "pqts", "pqi", "eof", "acd", "acde", "acdc", "acdt", "p2p", "l1", "l2", "eth",
+]);
+
+/** Prettify a highlight topic slug like "pq_ai_landscape" → "PQ AI landscape". */
+function prettyTopic(slug: string): string {
+  const words = slug.replace(/[_-]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return slug;
+  return words
+    .map((w, i) => {
+      if (TOPIC_ACRONYMS.has(w.toLowerCase())) return w.toUpperCase();
+      return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+    })
+    .join(" ");
+}
+
+/** Parse an inline WEBVTT transcript into speaker-tagged, seekable cues. */
+function parseVtt(vtt: string | null): TranscriptCue[] | null {
+  if (!vtt || !/-->/.test(vtt)) return null;
+  const cues: TranscriptCue[] = [];
+  const blocks = vtt.split(/\r?\n\r?\n/);
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).filter(Boolean);
+    const tIdx = lines.findIndex((l) => l.includes("-->"));
+    if (tIdx === -1) continue;
+    const start = lines[tIdx].split("-->")[0].trim();
+    const { seconds, stamp } = parseStamp(start.replace(/\.\d+$/, ""));
+    if (seconds == null) continue;
+    const body = lines.slice(tIdx + 1).join(" ").trim();
+    if (!body) continue;
+    const colon = body.indexOf(":");
+    const speaker = colon > 0 && colon < 32 ? body.slice(0, colon).trim() : null;
+    const text = speaker ? body.slice(colon + 1).trim() : body;
+    cues.push({ seconds, stamp: stamp ?? start, speaker, text });
+  }
+  return cues.length ? cues : null;
 }
 
 /** "01:12:30" or "12:30" → seconds. */
@@ -86,6 +149,7 @@ type Row = {
   issue_number: number | null;
   tldr: Record<string, unknown> | null;
   key_decisions: Record<string, unknown> | null;
+  transcript_vtt: string | null;
 };
 
 function toSummary(r: Row): CallSummary {
@@ -201,7 +265,7 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
     async () => {
       const rows = await query<Row>(
         `SELECT series, call_number, display_name, occurred_on, video_url,
-                has_tldr, has_transcript, issue_number, tldr, key_decisions
+                has_tldr, has_transcript, issue_number, tldr, key_decisions, transcript_vtt
          FROM protocol_calls
          WHERE series = $1 AND call_number = $2
          LIMIT 1`,
@@ -227,6 +291,17 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
         ...parseStamp(g.timestamp),
       })).filter((g) => g.text);
 
+      // Highlights arrive grouped by topic: { topic_slug: [{highlight, timestamp}] }.
+      const rawHighlights = t.highlights && typeof t.highlights === "object" && !Array.isArray(t.highlights)
+        ? (t.highlights as Record<string, unknown>)
+        : {};
+      const highlights: HighlightTopic[] = Object.entries(rawHighlights)
+        .map(([topic, items]) => ({
+          topic: prettyTopic(topic),
+          items: asArray(items).map((h) => ({ text: str(h.highlight) ?? "", ...parseStamp(h.timestamp) })).filter((h) => h.text),
+        }))
+        .filter((h) => h.items.length > 0);
+
       const kd = r.key_decisions && typeof r.key_decisions === "object" ? r.key_decisions : {};
       const decisionRefs: CallDecisionRef[] = asArray((kd as Record<string, unknown>).key_decisions).map((d) => ({
         text: str(d.original_text) ?? str(d.context) ?? "",
@@ -235,22 +310,28 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
         ...parseStamp(d.timestamp),
       })).filter((d) => d.text && d.eips.length > 0);
 
+      const eipsDiscussed = [...new Set(decisionRefs.flatMap((d) => d.eips))].sort((a, b) => a - b);
+
       return {
         series: r.series,
         number: r.call_number,
         title: callDisplayName({ series: r.series, call_number: r.call_number, display_name: r.display_name }),
         date: iso(r.occurred_on),
         videoUrl: r.video_url,
+        youtubeId: youtubeId(r.video_url),
         issueNumber: r.issue_number,
         summary: str(t.summary),
         decisions,
         actionItems,
         targets,
+        highlights,
         decisionRefs,
+        eipsDiscussed,
+        transcript: parseVtt(r.transcript_vtt),
         hasTranscript: Boolean(r.has_transcript),
       };
     },
-    ["v5-call", series, number],
+    ["v5-call-2", series, number],
     null,
   )();
 }
