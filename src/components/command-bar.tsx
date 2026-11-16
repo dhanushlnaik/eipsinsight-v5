@@ -23,7 +23,7 @@ export interface Movement {
 const JUMP = [
   { href: "/proposals", label: "Browse all proposals", icon: FileText },
   { href: "/upgrades", label: "Network upgrades", icon: Boxes },
-  { href: "/people", label: "People", icon: Users },
+  { href: "/people", label: "Contributors", icon: Users },
   { href: "/queue", label: "Editorial queue", icon: GitPullRequest },
 ];
 

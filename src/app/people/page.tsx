@@ -6,7 +6,7 @@ import { getTopContributors } from "@/server/proposals";
 import { ago } from "@/lib/format";
 
 export const revalidate = 300;
-export const metadata: Metadata = { title: "People" };
+export const metadata: Metadata = { title: "Contributors" };
 
 export default async function PeoplePage() {
   const people = await getTopContributors();
@@ -15,7 +15,7 @@ export default async function PeoplePage() {
     <main>
       <PageHead
         eyebrow="Contributors"
-        title="People"
+        title="Contributors"
         lead="The authors, editors and reviewers who move Ethereum standards forward, ranked by contribution score across the EIP, ERC and RIP repositories."
       />
 

@@ -3,7 +3,7 @@
 export const GROUPS = [
   { key: "proposal", label: "Proposals", types: ["eip", "erc", "rip"] },
   { key: "upgrade", label: "Upgrades", types: ["upgrade"] },
-  { key: "contributor", label: "People", types: ["contributor"] },
+  { key: "contributor", label: "Contributors", types: ["contributor"] },
   { key: "pr", label: "Pull requests", types: ["pr"] },
   { key: "issue", label: "Issues", types: ["issue"] },
   { key: "blog", label: "Articles", types: ["blog"] },
@@ -15,7 +15,7 @@ export type GroupKey = (typeof GROUPS)[number]["key"];
 export const SCOPES: { key: string; label: string; types: string[] }[] = [
   { key: "all", label: "Everything", types: [] },
   { key: "proposal", label: "Proposals", types: ["eip", "erc", "rip"] },
-  { key: "contributor", label: "People", types: ["contributor"] },
+  { key: "contributor", label: "Contributors", types: ["contributor"] },
   { key: "upgrade", label: "Upgrades", types: ["upgrade"] },
   { key: "pr", label: "Pull requests", types: ["pr"] },
   { key: "issue", label: "Issues", types: ["issue"] },

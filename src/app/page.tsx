@@ -38,7 +38,7 @@ export default async function Home() {
   const figures = [
     { label: "Proposals", value: total, note: "EIPs, ERCs and RIPs", href: "/proposals" },
     { label: "Open pull requests", value: stats.openPRs, note: "in the editorial queue", href: "/queue" },
-    { label: "People", value: stats.contributors, note: "authors, editors, reviewers", href: "/people" },
+    { label: "Contributors", value: stats.contributors, note: "authors, editors, reviewers", href: "/people" },
     { label: "Network upgrades", value: stats.upgrades, note: "shipped and planned", href: "/upgrades" },
   ];
 

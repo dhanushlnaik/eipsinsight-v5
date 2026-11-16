@@ -7,7 +7,7 @@ import { Home, FileText, Boxes, Users, Search } from "lucide-react";
 const NAV = [
   { href: "/proposals", label: "Proposals", icon: FileText, match: ["/proposals", "/eip", "/erc", "/rip"] },
   { href: "/upgrades", label: "Upgrades", icon: Boxes, match: ["/upgrades", "/upgrade"] },
-  { href: "/people", label: "People", icon: Users, match: ["/people", "/user"] },
+  { href: "/people", label: "Contributors", icon: Users, match: ["/people", "/user"] },
 ];
 
 // Shown in the desktop header only: the phone tab bar has room for four destinations and search.
