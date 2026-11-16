@@ -14,6 +14,32 @@ export interface Activity {
   repo: string | null;
 }
 
+export interface ProfilePR {
+  repoShort: string;
+  number: number;
+  title: string;
+  state: "Open" | "Merged" | "Closed";
+  reviews: number;
+  comments: number;
+  updated: string | null;
+}
+
+export interface ProfileReview {
+  repoShort: string;
+  number: number;
+  title: string | null;
+  state: string;
+  at: string;
+}
+
+export interface RepoStat {
+  repo: string;
+  score: number;
+  reviews: number;
+  comments: number;
+  commits: number;
+}
+
 export interface Contributor {
   actor: string;
   totalScore: number;
@@ -26,6 +52,9 @@ export interface Contributor {
   lastActivity: string | null;
   roles: { role: string; n: number }[];
   authored: AuthoredProposal[];
+  pullRequests: ProfilePR[];
+  reviewsList: ProfileReview[];
+  repos: RepoStat[];
   recent: Activity[];
 }
 
@@ -43,7 +72,7 @@ export async function getContributor(actor: string): Promise<Contributor | null>
   const authorMatch = (col: string) => (safeHandle ? `${col} ~* ('@' || $1 || '([^A-Za-z0-9-]|$)')` : `${col} ILIKE '%@' || $1 || '%'`);
 
   // Independent reads, so they run together rather than one round trip after another.
-  const [agg, roles, prCount, authoredEips, authoredRips, recent] = await Promise.all([
+  const [agg, roles, prCount, authoredEips, authoredRips, recent, prs, reviewRows, repoRows] = await Promise.all([
     query<{
       total_score: string | null;
       commits_count: string | null;
@@ -88,7 +117,7 @@ export async function getContributor(actor: string): Promise<Contributor | null>
        JOIN repositories r ON r.id = s.repository_id
        WHERE ${authorMatch("e.author")}
        ORDER BY e.id DESC
-       LIMIT 30`,
+       LIMIT 60`,
       [actor],
     ),
     soft(() =>
@@ -108,12 +137,61 @@ export async function getContributor(actor: string): Promise<Contributor | null>
        LIMIT 12`,
       [actor],
     ),
+    // Pull requests this person opened, newest first.
+    soft(() =>
+      query<{ pr_number: number; repo: string; title: string | null; state: string | null; merged_at: string | null; num_reviews: number | null; num_comments: number | null; updated_at: string | null }>(
+        `SELECT pr.pr_number, r.name AS repo, pr.title, pr.state, pr.merged_at, pr.num_reviews, pr.num_comments, pr.updated_at
+         FROM pull_requests pr JOIN repositories r ON r.id = pr.repository_id
+         WHERE lower(pr.author) = lower($1)
+         ORDER BY pr.updated_at DESC NULLS LAST LIMIT 250`,
+        [actor],
+      ),
+    ),
+    // Reviews this person submitted (latest per PR), newest first.
+    soft(() =>
+      query<{ pr_number: number; repo: string; title: string | null; review_state: string; submitted_at: string }>(
+        `SELECT DISTINCT ON (rv.repository_id, rv.pr_number) rv.pr_number, r.name AS repo, pr.title, rv.review_state, rv.submitted_at
+         FROM pr_reviews rv
+         JOIN repositories r ON r.id = rv.repository_id
+         LEFT JOIN pull_requests pr ON pr.pr_number = rv.pr_number AND pr.repository_id = rv.repository_id
+         WHERE lower(rv.reviewer) = lower($1)
+         ORDER BY rv.repository_id, rv.pr_number, rv.submitted_at DESC`,
+        [actor],
+      ),
+    ),
+    // Score split by repository.
+    soft(() =>
+      query<{ repo: string | null; total_score: number | null; reviews_count: number | null; comments_count: number | null; commits_count: number | null }>(
+        `SELECT r.name AS repo, cs.total_score, cs.reviews_count, cs.comments_count, cs.commits_count
+         FROM contributor_scores cs LEFT JOIN repositories r ON r.id = cs.repository_id
+         WHERE cs.actor = $1 ORDER BY cs.total_score DESC NULLS LAST`,
+        [actor],
+      ),
+    ),
   ]);
 
   const s = agg[0];
   const opened = prCount[0]?.opened ?? 0;
   const merged = prCount[0]?.merged ?? 0;
   const authored = [...authoredEips, ...authoredRips.filter((r) => !authoredEips.some((a) => a.kind === "rip" && a.number === r.number))];
+
+  const repoShort = (name: string) => (name.split("/").pop() ?? "eips").toLowerCase();
+  const pullRequests: ProfilePR[] = prs.map((r) => ({
+    repoShort: repoShort(r.repo),
+    number: r.pr_number,
+    title: r.title?.trim() || `Pull request #${r.pr_number}`,
+    state: r.merged_at ? "Merged" : (r.state ?? "").toLowerCase() === "open" ? "Open" : "Closed",
+    reviews: r.num_reviews ?? 0,
+    comments: r.num_comments ?? 0,
+    updated: r.updated_at ? String(r.updated_at) : null,
+  }));
+  const reviewsList: ProfileReview[] = reviewRows
+    .map((r) => ({ repoShort: repoShort(r.repo), number: r.pr_number, title: r.title?.trim() || null, state: r.review_state, at: String(r.submitted_at) }))
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 250);
+  const repos: RepoStat[] = repoRows
+    .filter((r) => r.repo)
+    .map((r) => ({ repo: r.repo!, score: Number(r.total_score ?? 0), reviews: Number(r.reviews_count ?? 0), comments: Number(r.comments_count ?? 0), commits: Number(r.commits_count ?? 0) }));
 
   // No scores row AND no activity AND nothing authored or opened: not a real profile.
   if (!s?.total_score && roles.length === 0 && authored.length === 0 && opened === 0) return null;
@@ -130,6 +208,9 @@ export async function getContributor(actor: string): Promise<Contributor | null>
     lastActivity: s?.last_activity ? String(s.last_activity) : null,
     roles,
     authored,
+    pullRequests,
+    reviewsList,
+    repos,
     recent: recent.map((a) => ({ ...a, occurred_at: String(a.occurred_at) })),
   };
 }

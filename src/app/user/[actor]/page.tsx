@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ChevronRight, Github } from "lucide-react";
 import { Badge } from "@/components/badge";
 import { Avatar } from "@/components/avatar";
-import { ProposalRow } from "@/components/proposal-row";
+import { ProfileTabs } from "@/components/profile-tabs";
 import { getContributor } from "@/server/contributor";
 import { fmtDate } from "@/lib/format";
 
@@ -41,7 +41,7 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
       <header className="masthead border-b border-border">
         <div className="wrap pt-10 sm:pt-14">
           <p className="eyebrow flex items-center gap-1.5">
-            <Link href="/people" className="transition-colors hover:text-ink">People</Link>
+            <Link href="/people" className="transition-colors hover:text-ink">Contributors</Link>
             <ChevronRight className="size-3" />
             <span>Contributor</span>
           </p>
@@ -76,55 +76,53 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
         </div>
       </header>
 
-      <div className="wrap grid gap-x-14 gap-y-12 pt-12 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <section className="min-w-0">
-          <div className="section-head flex items-baseline justify-between gap-4">
-            <h2 className="t-h3 text-ink">Authored proposals</h2>
-            <span className="font-mono text-xs text-ink-faint">{c.authored.length}</span>
-          </div>
-          {c.authored.length === 0 ? (
-            <p className="mt-5 text-sm text-ink-faint">No authored proposals on record.</p>
-          ) : (
-            <div className="card ledger mt-5 overflow-hidden">
-              {c.authored.map((a) => (
-                <ProposalRow key={`${a.kind}-${a.number}`} kind={a.kind} number={a.number} title={a.title} />
+      <div className="wrap space-y-12 pt-12">
+        {/* Span of activity + per-repo split */}
+        <section>
+          <p className="eyebrow">Active {fmtDate(c.firstActivity)} to {fmtDate(c.lastActivity)}</p>
+          {c.repos.length > 1 && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {c.repos.map((r) => (
+                <div key={r.repo} className="card p-4">
+                  <p className="truncate font-mono text-xs text-ink-faint">{r.repo}</p>
+                  <p className="mt-1.5 font-serif text-[1.5rem] leading-none text-ink tnum">{r.score.toLocaleString()}</p>
+                  <p className="mt-2 text-xs text-ink-muted">{r.reviews.toLocaleString()} reviews · {r.comments.toLocaleString()} comments · {r.commits.toLocaleString()} commits</p>
+                </div>
               ))}
             </div>
           )}
         </section>
 
-        <aside className="min-w-0">
+        {/* Contributions: sortable, tabbed */}
+        <section>
           <div className="section-head">
-            <h2 className="t-h3 text-ink">Activity</h2>
+            <h2 className="t-h3 text-ink">Contributions</h2>
+            <p className="mt-2 text-sm text-ink-muted">Everything {c.actor} has authored, opened and reviewed. Click a column to sort.</p>
           </div>
-          <dl className="mt-5 space-y-2.5 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-muted">First seen</dt>
-              <dd className="font-mono text-[0.8rem] text-ink">{fmtDate(c.firstActivity)}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-muted">Last active</dt>
-              <dd className="font-mono text-[0.8rem] text-ink">{fmtDate(c.lastActivity)}</dd>
-            </div>
-          </dl>
+          <div className="mt-6">
+            <ProfileTabs authored={c.authored} pullRequests={c.pullRequests} reviews={c.reviewsList} />
+          </div>
+        </section>
 
-          {c.recent.length > 0 && (
-            <>
-              <p className="eyebrow mt-8">Recent</p>
-              <ul className="ledger mt-3 border-y border-border">
-                {c.recent.map((a, i) => (
-                  <li key={i} className="flex items-center gap-2 py-2.5 text-sm">
-                    <span className="min-w-0 truncate capitalize text-ink-muted">{(a.action_type ?? "").replace(/_/g, " ")}</span>
-                    {a.pr_number && a.repo && (
-                      <Link href={`/pr/${a.repo.split("/").pop()!.toLowerCase()}/${a.pr_number}`} className="link shrink-0 font-mono text-[0.8rem]">#{a.pr_number}</Link>
-                    )}
-                    <span className="ml-auto shrink-0 font-mono text-xs text-ink-faint">{fmtDate(a.occurred_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </aside>
+        {/* Recent activity timeline */}
+        {c.recent.length > 0 && (
+          <section>
+            <div className="section-head">
+              <h2 className="t-h3 text-ink">Recent activity</h2>
+            </div>
+            <ul className="ledger mt-5 border-y border-border">
+              {c.recent.map((a, i) => (
+                <li key={i} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-ink-muted"><span className="capitalize text-ink">{(a.action_type ?? "activity").replace(/_/g, " ")}</span>{a.repo ? ` · ${a.repo}` : ""}</span>
+                  {a.pr_number && a.repo && (
+                    <Link href={`/pr/${a.repo.split("/").pop()!.toLowerCase()}/${a.pr_number}`} className="link shrink-0 font-mono text-[0.8rem]">#{a.pr_number}</Link>
+                  )}
+                  <span className="shrink-0 font-mono text-xs text-ink-faint">{fmtDate(a.occurred_at)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </main>
   );
