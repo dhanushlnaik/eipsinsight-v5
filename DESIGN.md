@@ -196,6 +196,11 @@ Do not add rails or crop marks to other pages. They mark the front page.
 | `.kbd` | CSS | Keyboard hint. |
 | `SectionHead` | `section-head.tsx` | How every section opens. |
 | `PageHead` | `page-head.tsx` | Masthead for index and profile pages. |
+| `.masthead` | CSS | The banded page header with a faint fading engineering-grid texture for light-mode depth (`.masthead-shadow` adds a soft separation). Applied by `PageHead` and every detail masthead. |
+| `ColumnChart` | `column-chart.tsx` | A ruled column chart, server-rendered as inline SVG, one or two grouped series. Scrolls on phones (min-width), bars carry a CSS tip. Every colour is a token. Used on Insights. |
+| `DataTable` | `data-table.tsx` | A themed, generic sortable + paginated table. Client-side sort/paging over the rows it is given (instant), whole-row navigation with a real link in the first cell for keyboard access, responsive column hiding (`hideBelow`), themed via `.dtable` in globals. Used by `ProposalsTable` on /proposals. |
+| `BarList` | `bar-list.tsx` | A ranked list with a proportional bar behind each value. Used for the busiest editors. |
+| `PlainLanguage` / `Stakeholders` / `Enterprise` / `Faqs` | `curation.tsx` | Curated plain-language context from `eip_curations`: a layman summary with benefit/tradeoff lists, per-stakeholder impact cards, an enterprise-readiness brief with impact tiers, and a native `<details>` FAQ accordion. Shown on proposal pages when present. |
 | `ThreadView` | `thread-view.tsx` | A pull request or issue: the entity masthead pattern, then proposals touched, reviews, and the description. Author-written markdown is rendered with `trusted={false}`. |
 | `IndexMosaic` | `index-mosaic.tsx` | Every proposal as one square in number order, coloured by status. Hover reads one out, the legend isolates a status, a click opens it. |
 | `LifecycleTrack` | `lifecycle-track.tsx` | Horizontal stepper from `sm`, vertical on phones so no stage is off-screen. |
@@ -242,7 +247,7 @@ Search is the product, so it has one behaviour everywhere (hero, palette, `/sear
 - Entrance: `.rise` (fade and 10px settle, 0.6s) on the home hero only, staggered by 50ms.
 - Search panel: opens in 180ms from its top edge; rows settle in over 250ms.
 - Interaction: 120 to 200ms colour and border transitions.
-- Data: figures count up once when they scroll into view.
+- Data: figures count up once when they scroll into view. Charts are static (server-rendered SVG); only their CSS tooltips react.
 - All of it is disabled under `prefers-reduced-motion`.
 
 Only three things loop: the 7px live dot, the ticker (80s per pass, paused on hover or

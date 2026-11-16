@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { ChevronRight, ExternalLink, Github, BookOpen, ArrowUpRight } from "lucide-react";
+import { ChevronRight, ExternalLink, Github, BookOpen, ArrowUpRight, MessagesSquare } from "lucide-react";
 import { EditorialPRs } from "@/components/editorial-prs";
 import { SectionHead } from "@/components/section-head";
 import { Badge } from "@/components/badge";
@@ -15,6 +15,8 @@ import { tokenize } from "@/lib/utils";
 import { fmtDate, bucketToken } from "@/lib/format";
 import { STATUS_MEANING, meaningFor } from "@/lib/meanings";
 import { getEntity, findKind, type Kind } from "@/server/entity";
+import { OnThisPage, type RailItem } from "@/components/on-this-page";
+import { PlainLanguage, Stakeholders, Enterprise, Faqs } from "@/components/curation";
 
 export const revalidate = 300;
 
@@ -76,6 +78,11 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
   const typeTip = [e.type ? meaningFor(e.type) : null, e.category ? meaningFor(e.category) : null].filter(Boolean).join(" ") || undefined;
   const hasRel = e.requires.length > 0 || e.requiredBy.length > 0;
   const hasGov = e.editorialPRs.length > 0 || e.meetings.length > 0;
+  const cur = e.curation;
+  const hasPlain = !!cur && (!!cur.laymanSummary || cur.benefits.length > 0 || cur.tradeoffs.length > 0);
+  const hasStake = !!cur && cur.stakeholders.length > 0;
+  const hasEnt = !!cur?.enterprise;
+  const hasFaq = !!cur && cur.faq.length > 0;
   const statusMeaning = e.status ? STATUS_MEANING[e.status.toLowerCase()] : null;
   const lead = e.description ?? e.abstract;
   const h2s = e.headings.filter((h) => h.depth === 2);
@@ -84,12 +91,23 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
   const { head: specHead, rest: specRest } = e.content ? splitSpec(e.content) : { head: "", rest: "" };
 
   const nav = [
+    ...(hasPlain ? [{ id: "plain", label: "In brief" }] : []),
     { id: "lifecycle", label: "Lifecycle" },
     ...(e.upgrades.length ? [{ id: "upgrade", label: "Upgrade" }] : []),
     ...(hasGov ? [{ id: "governance", label: "Governance" }] : []),
+    ...(hasStake || hasEnt ? [{ id: "impact", label: "Who it affects" }] : []),
+    ...(hasFaq ? [{ id: "faq", label: "FAQ" }] : []),
     ...(hasRel ? [{ id: "dependencies", label: "Dependencies" }] : []),
     ...(e.content ? [{ id: "specification", label: "Specification" }] : []),
   ];
+  // Flatten nav + the spec's h2 subheadings, dropping any heading whose slug collides
+  // with a section id (e.g. a "## Specification" heading under the Specification section).
+  const seenRail = new Set<string>();
+  const railItems: RailItem[] = nav
+    .flatMap((n) =>
+      n.id === "specification" ? [{ id: n.id, label: n.label }, ...h2s.map((h) => ({ id: h.slug, label: h.text, sub: true }))] : [{ id: n.id, label: n.label }],
+    )
+    .filter((it) => (seenRail.has(it.id) ? false : (seenRail.add(it.id), true)));
 
   // Sections are numbered in the order they actually appear on this proposal.
   const no = (id: string) => String(nav.findIndex((n) => n.id === id) + 1).padStart(2, "0");
@@ -97,7 +115,7 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
   return (
     <main>
       {/* ── Masthead: the document's identity ───────────────────── */}
-      <header className="relative overflow-hidden border-b border-border bg-surface">
+      <header className="masthead masthead-shadow border-b border-border">
         <div className="wrap">
           <div className="relative overflow-hidden pb-8 pt-7 sm:pt-9">
           <span aria-hidden className="ghost-numeral absolute -bottom-12 right-0 hidden md:block">{e.number}</span>
@@ -147,6 +165,7 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
             ) : <span />}
             <div className="flex items-center gap-2">
               <a href={e.officialUrl} target="_blank" rel="noreferrer" className="btn btn-outline h-9 bg-surface px-3"><BookOpen className="size-4" /> Official page</a>
+              {e.discussionsTo && <a href={e.discussionsTo} target="_blank" rel="noreferrer" title="Open discussion thread" aria-label="Open discussion thread" className="icon-btn bg-surface"><MessagesSquare className="size-4" /></a>}
               {e.githubUrl && <a href={e.githubUrl} target="_blank" rel="noreferrer" title="View source on GitHub" aria-label="View source on GitHub" className="icon-btn bg-surface"><Github className="size-4" /></a>}
               <CopyLink />
             </div>
@@ -190,6 +209,14 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
             </p>
           )}
 
+          {/* In brief (curated plain-language) */}
+          {hasPlain && (
+            <section id="plain">
+              <SectionHead label="In brief" title={cur!.laymanTitle && !cur!.laymanTitle.toLowerCase().startsWith(label.toLowerCase()) ? cur!.laymanTitle : "What this does, in plain language"} desc="A plain-language read on what the proposal changes, who gains and what it costs." />
+              <div className="mt-8"><PlainLanguage c={cur!} /></div>
+            </section>
+          )}
+
           {/* Lifecycle */}
           <section id="lifecycle">
             <SectionHead index={no("lifecycle")} label="Standards process" title="Lifecycle" desc="What has happened to this proposal inside the EIP process." />
@@ -230,6 +257,9 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
                           </div>
                           <div className="mt-1.5 flex flex-wrap items-center gap-3 font-mono text-xs text-ink-faint">
                             <span>{fmtDate(ev.changed_at)}</span>
+                            {ev.commit_sha && (
+<a href={`https://github.com/${e.repo}/commit/${ev.commit_sha}`} target="_blank" rel="noreferrer" title={`Commit ${ev.commit_sha}`} className="inline-flex items-center gap-1 transition-colors hover:text-ink">commit {ev.commit_sha.slice(0, 7)} <ExternalLink className="size-3" /></a>
+                            )}
                             {ev.pr_number && <a href={`https://github.com/${e.repo}/pull/${ev.pr_number}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 transition-colors hover:text-ink">PR #{ev.pr_number} <ExternalLink className="size-3" /></a>}
                           </div>
                         </li>
@@ -308,6 +338,28 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
             </section>
           )}
 
+          {/* Who it affects (curated) */}
+          {(hasStake || hasEnt) && (
+            <section id="impact">
+              <SectionHead label="Impact" title="Who it affects" desc="How this proposal lands for the people who build on, run and rely on Ethereum." />
+              {hasStake && <div className="mt-8"><Stakeholders c={cur!} /></div>}
+              {hasEnt && (
+                <div className="mt-6">
+                  <h3 className="eyebrow mb-3">Enterprise & institutions</h3>
+                  <Enterprise e={cur!.enterprise!} />
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* FAQ (curated) */}
+          {hasFaq && (
+            <section id="faq">
+              <SectionHead label="Questions" title="Frequently asked" desc="Common questions about this proposal, answered plainly." />
+              <div className="mt-8"><Faqs c={cur!} /></div>
+            </section>
+          )}
+
           {/* Full specification */}
           {e.content && (
             <section id="specification">
@@ -328,20 +380,11 @@ export default async function EntityPage({ params }: { params: Promise<{ kind: s
         <aside className="hidden lg:block">
           <div className="sticky top-[calc(var(--header-h)+2rem)]">
             <p className="eyebrow">On this page</p>
-            <nav className="scroll-quiet mt-4 max-h-[70vh] overflow-y-auto border-l border-border">
-              {nav.map((n) => (
-                <div key={n.id}>
-                  <a href={`#${n.id}`} className="-ml-px block border-l border-transparent py-1.5 pl-4 text-sm text-ink-muted transition-colors hover:border-ink hover:text-ink">{n.label}</a>
-                  {n.id === "specification" &&
-                    h2s.map((h) => (
-                      <a key={h.slug} href={`#${h.slug}`} className="-ml-px block truncate border-l border-transparent py-1 pl-7 text-[0.8rem] text-ink-faint transition-colors hover:border-ink hover:text-ink">{h.text}</a>
-                    ))}
-                </div>
-              ))}
-            </nav>
+            <OnThisPage items={railItems} />
           </div>
         </aside>
       </div>
     </main>
   );
 }
+

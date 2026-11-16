@@ -6,7 +6,8 @@ import { Badge } from "@/components/badge";
 import { CountUp } from "@/components/count-up";
 import { SectionHead } from "@/components/section-head";
 import { IndexMosaic } from "@/components/index-mosaic";
-import { getStats, getPulse, getUpgradesList } from "@/server/stats";
+import { getStats, getPulse } from "@/server/stats";
+import { allUpgrades } from "@/data/upgrades";
 import { getAllProposals } from "@/server/proposals";
 import { STATUS_ORDER, ago } from "@/lib/format";
 import { tokenize } from "@/lib/utils";
@@ -16,7 +17,8 @@ export const revalidate = 300;
 const TRACKS = ["Core", "Networking", "Interface", "ERC", "RIP", "Meta", "Informational"];
 
 export default async function Home() {
-  const [stats, pulse, upgrades, proposals] = await Promise.all([getStats(), getPulse(), getUpgradesList(), getAllProposals()]);
+  const [stats, pulse, proposals] = await Promise.all([getStats(), getPulse(), getAllProposals()]);
+  const upgrades = allUpgrades();
 
   const statusCount = new Map<string, number>();
   const trackCount = new Map<string, number>();
@@ -31,7 +33,7 @@ export default async function Home() {
   const tracks = TRACKS.filter((t) => trackCount.has(t)).map((t) => ({ track: t, n: trackCount.get(t)! }));
   const total = proposals.length || stats.eips;
   // Upgrades whose composition we track lead; the rest follow, newest first.
-  const featured = [...upgrades].sort((a, b) => Number(b.eips > 0) - Number(a.eips > 0)).slice(0, 6);
+  const featured = upgrades.slice(0, 6); // upcoming first, then newest shipped
 
   const figures = [
     { label: "Proposals", value: total, note: "EIPs, ERCs and RIPs", href: "/proposals" },
@@ -176,12 +178,16 @@ export default async function Home() {
               {featured.map((u) => (
                 <Link key={u.slug} href={`/upgrade/${u.slug}`} className="card tile flex min-w-0 flex-col p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="t-h3 min-w-0 text-ink">{u.name}</h3>
-                    <ArrowUpRight className="tile-arrow mt-1 size-4 shrink-0" />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="t-h3 min-w-0 truncate text-ink">{u.name}</h3>
+                      {u.mascot && <span className="shrink-0 text-lg" aria-hidden>{u.mascot.emoji}</span>}
+                    </div>
+                    <span className="badge shrink-0" data-token={u.status === "Live" ? "final" : u.status === "Upcoming" ? "last-call" : "draft"}>{u.status}</span>
                   </div>
-                  <div className="mt-6 flex items-center gap-3 border-t border-border pt-3 font-mono text-xs text-ink-faint">
-                    <span className={u.eips > 0 ? "text-ink" : ""}>{u.eips > 0 ? `${u.eips} EIPs tracked` : "Composition not tracked"}</span>
-                    {u.meta_eip && <span className="ml-auto text-ink-muted">Meta EIP-{u.meta_eip}</span>}
+                  {u.tagline && <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-muted">{u.tagline}</p>}
+                  <div className="mt-auto flex items-center gap-3 border-t border-border pt-3 font-mono text-xs text-ink-faint">
+                    <span className="text-ink-muted">{u.date ? u.date.slice(0, 4) : "Planned"}</span>
+                    <span className="ml-auto">{u.eipCount > 0 ? `${u.eipCount} EIPs` : u.metaEip ? `Meta EIP-${u.metaEip}` : "Scope forming"}</span>
                   </div>
                 </Link>
               ))}

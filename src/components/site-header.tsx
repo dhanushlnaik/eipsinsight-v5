@@ -29,12 +29,13 @@ export async function SiteHeader() {
     <>
       <Ticker items={pulse} />
       <header className="sticky top-0 z-40 border-b border-border bg-paper">
-        <div className="wrap flex h-[var(--header-h)] items-center gap-4 sm:grid sm:grid-cols-[1fr_auto_1fr]">
-          <Link href="/" className="shrink-0 justify-self-start transition-opacity hover:opacity-80" aria-label="EIPsInsight home">
+        {/* Left-aligned until there is room to centre the nav (lg), so five items never crowd the pill. */}
+        <div className="wrap flex h-[var(--header-h)] items-center gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+          <Link href="/" className="shrink-0 lg:justify-self-start transition-opacity hover:opacity-80" aria-label="EIPsInsight home">
             <Logo />
           </Link>
           <NavLinks counts={counts} />
-          <div className="ml-auto flex items-center gap-2 justify-self-end">
+          <div className="ml-auto flex items-center gap-2 lg:justify-self-end">
             <SearchTrigger />
             <ThemeToggle />
           </div>

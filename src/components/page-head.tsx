@@ -11,7 +11,7 @@ export function PageHead({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="border-b border-border bg-surface">
+    <header className="masthead masthead-shadow border-b border-border">
       <div className="wrap py-10 sm:py-14">
         <p className="eyebrow">{eyebrow}</p>
         <h1 className="t-h1 mt-4 text-ink">{title}</h1>

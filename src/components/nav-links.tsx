@@ -11,7 +11,10 @@ const NAV = [
 ];
 
 // Shown in the desktop header only: the phone tab bar has room for four destinations and search.
-const DESKTOP_NAV = [...NAV, { href: "/queue", label: "Queue", icon: FileText, match: ["/queue", "/pr", "/issue"] }];
+const DESKTOP_NAV = [
+  ...NAV,
+  { href: "/queue", label: "Queue", icon: FileText, match: ["/queue", "/pr", "/issue"] },
+];
 
 function isActive(pathname: string, match: string[]): boolean {
   return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
@@ -21,13 +24,13 @@ function isActive(pathname: string, match: string[]): boolean {
 export function NavLinks({ counts = {} }: { counts?: Record<string, string | null> }) {
   const pathname = usePathname();
   return (
-    <nav className="nav-seg hidden sm:flex" aria-label="Primary">
+    <nav className="nav-seg no-scrollbar hidden max-w-full overflow-x-auto sm:flex" aria-label="Primary">
       {DESKTOP_NAV.map((n) => {
         const active = isActive(pathname, n.match);
         return (
           <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined}>
             {n.label}
-            {counts[n.href] && <span className="nav-n hidden md:inline">{counts[n.href]}</span>}
+            {counts[n.href] && <span className="nav-n hidden lg:inline">{counts[n.href]}</span>}
           </Link>
         );
       })}

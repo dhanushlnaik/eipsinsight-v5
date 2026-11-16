@@ -37,7 +37,7 @@ export default async function ContributorPage({ params }: { params: Promise<{ ac
 
   return (
     <main>
-      <header className="border-b border-border bg-surface">
+      <header className="masthead masthead-shadow border-b border-border">
         <div className="wrap pt-10 sm:pt-14">
           <p className="eyebrow flex items-center gap-1.5">
             <Link href="/people" className="transition-colors hover:text-ink">People</Link>

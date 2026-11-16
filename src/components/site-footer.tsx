@@ -6,6 +6,7 @@ const EXPLORE = [
   { href: "/upgrades", label: "Network upgrades" },
   { href: "/people", label: "People" },
   { href: "/queue", label: "Editorial queue" },
+  { href: "/upgrade/devnets", label: "Devnets" },
   { href: "/search", label: "Search" },
 ];
 

@@ -25,8 +25,10 @@ Every surface reads through a small set of server functions in `src/server/`:
 | `getEntity(kind, number)` | `entity.ts` | One EIP, ERC or RIP with lifecycle, dependencies, governance, spec |
 | `getThread(kind, repo, number)` | `thread.ts` | One pull request or issue with linked proposals and reviews |
 | `getContributor(actor)` | `contributor.ts` | One person: scores, roles, authored proposals, activity |
-| `getUpgrade(slug)` | `upgrade.ts` | One network upgrade and its composition |
+| `getUpgradeDetail(slug)` | `upgrade.ts` | One upgrade: curated facts, mascot, headliners (from `src/data/`), merged with live inclusion buckets |
+| `getDevnets()` / `getDevnet(id)` | `devnets.ts` | Devnet specs: EIP scope, client support, announcements, grouped by series |
 | `getQueue()` | `queue.ts` | Open pull requests with their editorial state, longest wait first |
+| `getInsights()` | `insights.ts` | Monthly throughput, status activity and the busiest editors (last 12 months) |
 | `getAllProposals()` and friends | `proposals.ts`, `stats.ts` | Lists and counters for the index pages |
 
 Reads are cached for five minutes through `cachedOr` (`src/lib/cache.ts`), which never
@@ -105,6 +107,27 @@ searching a GitHub handle shows the person before the proposals that mention the
 A bare number, or `EIP-123` / `ERC-20`, never waits for the database. The client jumps
 straight to that proposal (`src/lib/swoop.ts`).
 
+## Upgrade data
+
+The network-upgrade pages run on a **curated static dataset** in `src/data/`
+(`network-upgrades.ts` + `upgrade-registry.ts`), not the database. It holds the
+full history from Frontier (2015) to today: dates, activation blocks and fork
+epochs, every EIP with its title and category, meta EIPs, specs links, mascots
+(EIP-8066), and execution/consensus fork pairing. `src/data/upgrades.ts` folds
+the execution and consensus forks into the upgrade people name (Prague + Electra
+→ Pectra, the two halves of The Merge → Paris) and resolves each EIP.
+
+For upgrades still being assembled (Glamsterdam, Hegotá), the live inclusion
+buckets (scheduled / considered / proposed / declined) come from the database
+and are merged in by `getUpgradeDetail`. Their **roadmap** (scoping → devnets →
+testnets → mainnet) is projected by `src/data/fork-schedule.ts` from a curated
+mainnet target with locked actual dates; keep both static files current as ACD
+announces changes.
+
+The `/upgrades` index also shows the **inclusion-process ladder**
+(`inclusion-ladder.tsx`) and a **recent-changes feed** from
+`upgrade_composition_events` (`getRecentUpgradeChanges`).
+
 ## Routes
 
 | Route | Page |
@@ -115,5 +138,7 @@ straight to that proposal (`src/lib/swoop.ts`).
 | `/eip/[n]`, `/erc/[n]`, `/rip/[n]` | A proposal |
 | `/pr/[repo]/[n]`, `/issue/[repo]/[n]` | A pull request or an issue |
 | `/upgrades`, `/upgrade/[slug]` | Network upgrades |
+| `/upgrade/devnets`, `/upgrade/devnets/[id]` | Devnets (from `devnet_specs`): EIP scope, client support, launch notes |
 | `/people`, `/user/[actor]` | Contributors |
-| `/queue?waiting=&repo=` | Editorial queue: open pull requests by who they are waiting on |
+| `/queue?waiting=&repo=&ci=` | Editorial queue: open pull requests by who they are waiting on |
+| `/insights` | The standards process over the last year: throughput, activity, editors |

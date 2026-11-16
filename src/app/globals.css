@@ -149,6 +149,7 @@ html {
 }
 @media (min-width: 1024px) { html { scroll-padding-top: calc(var(--header-h) + 1.5rem); } }
 html.dark { color-scheme: dark; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   background: var(--paper);
   color: var(--ink);
@@ -368,6 +369,26 @@ mark.hl { background: var(--brand-soft); color: var(--brand-strong); border-radi
 .ticker:hover .ticker-track, .ticker:focus-within .ticker-track { animation-play-state: paused; }
 @keyframes ticker { to { transform: translateX(-50%); } }
 
+/* Masthead: the banded page header, with a faint engineering grid for depth.
+   The grid fades out so it reads as texture, not a table, in both themes. */
+.masthead { position: relative; background: var(--surface); overflow: hidden; }
+.masthead::before {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--ink) 4.5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--ink) 4.5%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(120% 90% at 12% -10%, #000, transparent 72%);
+  mask-image: radial-gradient(120% 90% at 12% -10%, #000, transparent 72%);
+}
+html.dark .masthead::before { background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px); }
+.masthead > * { position: relative; z-index: 1; }
+/* a hairline glow of depth under a banded header in light mode */
+.masthead-shadow { box-shadow: 0 1px 0 var(--border), 0 14px 28px -24px color-mix(in oklch, var(--ink) 40%, transparent); }
+
 /* Crop marks: small registration crosses where frame rules meet */
 .crop { position: absolute; width: 9px; height: 9px; pointer-events: none; }
 .crop::before, .crop::after { content: ""; position: absolute; background: var(--ink); }
@@ -422,6 +443,45 @@ mark.hl { background: var(--brand-soft); color: var(--brand-strong); border-radi
 [data-token="closed"], [data-token="changes-requested"] { --token: var(--c-withdrawn); }
 [data-token="commented"]  { --token: var(--c-draft); }
 [data-token="dismissed"]  { --token: var(--c-stagnant); }
+
+/* ── Data table: themed, sortable, dense ──────────────────────── */
+.dtable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9rem; }
+.dtable thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-2);
+  text-align: left;
+  padding: 0; /* the button owns the padding */
+  border-bottom: 1px solid var(--ink);
+  white-space: nowrap;
+}
+.dtable thead th .th-inner,
+.dtable thead th button {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.dtable thead th button { cursor: pointer; transition: color 0.12s ease; }
+.dtable thead th button:hover { color: var(--ink); }
+.dtable thead th[aria-sort] button { color: var(--ink); }
+.dtable thead th.num .th-inner, .dtable thead th.num button { justify-content: flex-end; }
+.dtable thead th .sort-caret { opacity: 0; transition: opacity 0.12s ease; }
+.dtable thead th button:hover .sort-caret { opacity: 0.5; }
+.dtable thead th[aria-sort] .sort-caret { opacity: 1; }
+.dtable tbody td { padding: 0.62rem 0.9rem; border-bottom: 1px solid var(--border); color: var(--ink); vertical-align: middle; }
+.dtable tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dtable tbody tr { position: relative; transition: background-color 0.12s ease; }
+.dtable tbody tr:last-child td { border-bottom: 0; }
+.dtable tbody tr.row-link { cursor: pointer; }
+.dtable tbody tr.row-link:hover { background: var(--surface-2); }
+.dtable tbody tr.row-link::after {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--token, var(--brand)); opacity: 0;
+}
+.dtable tbody tr.row-link:hover::after { opacity: 1; }
+.dtable tbody tr:focus-within { background: var(--surface-2); }
 
 /* ── The Index mosaic: one cell per proposal ──────────────────── */
 .mosaic {

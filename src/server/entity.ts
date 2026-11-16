@@ -6,6 +6,7 @@ export interface StatusEvent {
   from_status: string | null;
   to_status: string;
   pr_number: number | null;
+  commit_sha: string | null;
   changed_at: string;
 }
 
@@ -53,11 +54,47 @@ export interface Heading {
   slug: string;
 }
 
+export interface Faq {
+  question: string;
+  answer: string;
+}
+
+export interface StakeholderImpact {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface EnterpriseOrg {
+  role: string | null;
+  level: string | null;
+  why: string | null;
+}
+
+export interface EnterpriseImpact {
+  tier: string | null;
+  summary: string | null;
+  readiness: string | null;
+  organizations: EnterpriseOrg[];
+}
+
+/** Curated, plain-language context for an EIP (from the eip_curations table). */
+export interface Curation {
+  laymanTitle: string | null;
+  laymanSummary: string | null;
+  benefits: string[];
+  tradeoffs: string[];
+  stakeholders: StakeholderImpact[];
+  faq: Faq[];
+  enterprise: EnterpriseImpact | null;
+}
+
 export interface Entity {
   kind: Kind;
   number: number;
   title: string;
   description: string | null;
+  discussionsTo: string | null;
   abstract: string | null;
   content: string | null;
   headings: Heading[];
@@ -78,10 +115,12 @@ export interface Entity {
   events: StatusEvent[];
   editorialPRs: EditorialPR[];
   meetings: Meeting[];
+  curation: Curation | null;
 }
 
 interface Source {
   description: string | null;
+  discussionsTo: string | null;
   abstract: string | null;
   content: string | null;
   headings: Heading[];
@@ -93,7 +132,7 @@ function slugify(s: string): string {
 
 /** Best-effort: pull the description, abstract, full body + headings from source markdown. Never throws. */
 async function fetchSource(repo: string, filePath: string | null): Promise<Source> {
-  const empty: Source = { description: null, abstract: null, content: null, headings: [] };
+  const empty: Source = { description: null, discussionsTo: null, abstract: null, content: null, headings: [] };
   if (!repo || !filePath) return empty;
   try {
     const res = await fetch(`https://raw.githubusercontent.com/${repo}/master/${filePath}`, {
@@ -109,6 +148,12 @@ async function fetchSource(repo: string, filePath: string | null): Promise<Sourc
       const d = fm[1].match(/^description:\s*(.+)$/m);
       if (d) description = d[1].trim().replace(/^["']|["']$/g, "") || null;
     }
+    let discussionsTo: string | null = null;
+    if (fm) {
+      const dt = fm[1].match(/^discussions-to:\s*(.+)$/m);
+      const url = dt?.[1].trim().replace(/^["']|["']$/g, "");
+      if (url && /^https?:\/\//.test(url)) discussionsTo = url;
+    }
 
     const body = md.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, "").trim();
 
@@ -123,7 +168,7 @@ async function fetchSource(repo: string, filePath: string | null): Promise<Sourc
       headings.push({ depth: m[1].length, text, slug: slugify(text) });
     }
 
-    return { description, abstract: abstract || null, content: body, headings };
+    return { description, discussionsTo, abstract: abstract || null, content: body, headings };
   } catch {
     return empty;
   }
@@ -188,7 +233,7 @@ async function fetchEntity(kind: Kind, number: number): Promise<Entity | null> {
   const [events, requiredBy, upgrades, prs, mtgRows, layerRows, src] = await Promise.all([
     query<StatusEvent>(
       `
-      SELECT se.from_status, se.to_status, se.pr_number, se.changed_at
+      SELECT se.from_status, se.to_status, se.pr_number, se.commit_sha, se.changed_at
       FROM eip_status_events se
       JOIN eips e ON e.id = se.eip_id
       JOIN repositories r ON r.id = se.repository_id
@@ -235,7 +280,7 @@ async function fetchEntity(kind: Kind, number: number): Promise<Entity | null> {
        ORDER BY pa.issue_number, pa.occurs_on DESC NULLS LAST`,
       [number],
     ),
-    query<{ layer: string | null }>(`SELECT layer FROM eip_curations WHERE eip_number = $1 AND layer IS NOT NULL LIMIT 1`, [number]),
+    query<Record<string, unknown>>(`SELECT layer, layman_title, layman_summary, benefits, tradeoffs, stakeholder_impacts, faq, enterprise_impact FROM eip_curations WHERE eip_number = $1 LIMIT 1`, [number]),
     fetchSource(row.repo, row.file_path),
   ]);
 
@@ -262,8 +307,10 @@ async function fetchEntity(kind: Kind, number: number): Promise<Entity | null> {
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
     .slice(0, 6);
 
-  const layerCode = layerRows[0]?.layer ?? null;
+  const curRow = layerRows[0] ?? null;
+  const layerCode = (curRow?.layer as string | null) ?? null;
   const layer = layerCode === "EL" ? "Execution Layer" : layerCode === "CL" ? "Consensus Layer" : layerCode;
+  const curation = parseCuration(curRow);
 
 
   return {
@@ -271,6 +318,7 @@ async function fetchEntity(kind: Kind, number: number): Promise<Entity | null> {
     number: row.eip_number,
     title: row.title,
     description: src.description,
+    discussionsTo: src.discussionsTo,
     abstract: src.abstract,
     content: src.content,
     headings: src.headings,
@@ -291,6 +339,7 @@ async function fetchEntity(kind: Kind, number: number): Promise<Entity | null> {
     events: events.map((e) => ({ ...e, changed_at: String(e.changed_at) })),
     editorialPRs,
     meetings,
+    curation,
   };
 }
 
@@ -322,6 +371,7 @@ async function fetchRip(number: number): Promise<Entity | null> {
     number: row.rip_number,
     title: row.title?.trim() || "Untitled",
     description: src.description,
+    discussionsTo: src.discussionsTo,
     abstract: src.abstract,
     content: src.content,
     headings: src.headings,
@@ -342,6 +392,68 @@ async function fetchRip(number: number): Promise<Entity | null> {
     events: [],
     editorialPRs: [],
     meetings: [],
+    curation: null,
+  };
+}
+
+const STAKEHOLDER_LABELS: Record<string, string> = {
+  appDevs: "App developers",
+  toolingInfra: "Tooling & infrastructure",
+  endUsers: "End users",
+  validators: "Validators & stakers",
+  nodeOperators: "Node operators",
+  walletProviders: "Wallet providers",
+  l2s: "Layer 2s",
+  institutions: "Institutions",
+  researchers: "Researchers",
+  auditors: "Auditors",
+};
+
+function strList(v: unknown): string[] {
+  const arr = Array.isArray(v) ? v : typeof v === "string" ? safeJson(v) : [];
+  return (Array.isArray(arr) ? arr : []).filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
+}
+function safeJson(v: string): unknown {
+  try { return JSON.parse(v); } catch { return null; }
+}
+function asObj(v: unknown): Record<string, unknown> {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+  if (typeof v === "string") { const p = safeJson(v); return p && typeof p === "object" && !Array.isArray(p) ? (p as Record<string, unknown>) : {}; }
+  return {};
+}
+function humanLabel(key: string): string {
+  return STAKEHOLDER_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+}
+
+function parseCuration(row: Record<string, unknown> | null): Curation | null {
+  if (!row) return null;
+  const laymanSummary = typeof row.layman_summary === "string" ? row.layman_summary.trim() : null;
+  const benefits = strList(row.benefits);
+  const tradeoffs = strList(row.tradeoffs);
+
+  const stObj = asObj(row.stakeholder_impacts);
+  const stakeholders: StakeholderImpact[] = Object.entries(stObj)
+    .map(([key, val]) => ({ key, label: humanLabel(key), description: typeof (val as Record<string, unknown>)?.description === "string" ? String((val as Record<string, unknown>).description) : typeof val === "string" ? val : "" }))
+    .filter((s) => s.description.trim().length > 0);
+
+  const faqRaw = Array.isArray(row.faq) ? row.faq : typeof row.faq === "string" ? safeJson(row.faq) : [];
+  const faq: Faq[] = (Array.isArray(faqRaw) ? faqRaw : [])
+    .map((f) => ({ question: String((f as Record<string, unknown>)?.question ?? "").trim(), answer: String((f as Record<string, unknown>)?.answer ?? "").trim() }))
+    .filter((f) => f.question && f.answer);
+
+  const ent = asObj(row.enterprise_impact);
+  const orgs = (Array.isArray(ent.organizations) ? ent.organizations : []).map((o) => {
+    const oo = o as Record<string, unknown>;
+    return { role: typeof oo.role === "string" ? oo.role : null, level: typeof oo.level === "string" ? oo.level : null, why: typeof oo.why === "string" ? oo.why : null };
+  });
+  const enterprise: EnterpriseImpact | null = Object.keys(ent).length
+    ? { tier: typeof ent.tier === "string" ? ent.tier : null, summary: typeof ent.summary === "string" ? ent.summary : null, readiness: typeof ent.readiness === "string" ? ent.readiness : null, organizations: orgs }
+    : null;
+
+  if (!laymanSummary && !benefits.length && !tradeoffs.length && !stakeholders.length && !faq.length && !enterprise) return null;
+  return {
+    laymanTitle: typeof row.layman_title === "string" ? row.layman_title : null,
+    laymanSummary, benefits, tradeoffs, stakeholders, faq, enterprise,
   };
 }
 

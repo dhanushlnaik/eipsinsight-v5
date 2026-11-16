@@ -62,3 +62,68 @@ export async function getUpgrade(slug: string): Promise<Upgrade | null> {
     totalEips: comp.length,
   };
 }
+
+// ── v5 unified detail: curated history + live DB inclusion buckets ──────────
+import { getUpgradeSummary, type UpgradeSummary } from "@/data/upgrades";
+import { cachedOr } from "@/lib/cache";
+
+export interface UpgradeDetail extends UpgradeSummary {
+  /** Live inclusion buckets from the scheduler, for upgrades whose scope is still forming. */
+  buckets: { bucket: string; eips: UpgradeEip[] }[];
+  dbTotal: number;
+}
+
+/** DB composition for a slug, tolerant of the DB being down or the slug being absent. */
+async function dbComposition(slug: string): Promise<{ buckets: UpgradeDetail["buckets"]; total: number }> {
+  try {
+    const u = await getUpgrade(slug);
+    if (u) return { buckets: u.buckets, total: u.totalEips };
+  } catch {
+    // DB unreachable — the curated data still renders.
+  }
+  return { buckets: [], total: 0 };
+}
+
+/**
+ * One upgrade, everything we have: the curated facts, mascot and headliners from
+ * the static history, plus the live inclusion buckets from the database for
+ * upgrades still being assembled. Cached for five minutes; never caches a miss.
+ */
+export function getUpgradeDetail(slug: string): Promise<UpgradeDetail | null> {
+  const summary = getUpgradeSummary(slug);
+  if (!summary) return Promise.resolve(null);
+  return cachedOr<UpgradeDetail | null>(
+    async () => {
+      const { buckets, total } = await dbComposition(slug);
+      return { ...summary, buckets, dbTotal: total };
+    },
+    ["v5-upgrade-detail-2", slug],
+    { ...summary, buckets: [], dbTotal: 0 },
+  )();
+}
+
+export interface UpgradeChange {
+  slug: string | null;
+  upgradeName: string | null;
+  eip_number: number;
+  bucket: string;
+  changed_at: string;
+}
+
+/** The most recent EIP inclusion-bucket changes across all upgrades, newest first. */
+export const getRecentUpgradeChanges = cachedOr<UpgradeChange[]>(
+  async () => {
+    const rows = await query<{ slug: string | null; name: string | null; eip_number: number; bucket: string; changed_at: string }>(
+      `SELECT u.slug, u.name, e.eip_number, e.bucket, e.commit_date AS changed_at
+       FROM upgrade_composition_events e
+       JOIN upgrades u ON u.id = e.upgrade_id
+       WHERE e.eip_number IS NOT NULL AND e.bucket IS NOT NULL AND e.commit_date IS NOT NULL
+         AND coalesce(e.event_type, '') <> 'removed'
+       ORDER BY e.commit_date DESC
+       LIMIT 12`,
+    );
+    return rows.map((r) => ({ slug: r.slug, upgradeName: r.name, eip_number: r.eip_number, bucket: r.bucket, changed_at: String(r.changed_at) }));
+  },
+  ["v5-upgrade-changes"],
+  [],
+);
