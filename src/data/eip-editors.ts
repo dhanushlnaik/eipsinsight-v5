@@ -5,19 +5,16 @@
 // Reviewer badges on these lists so a profile only claims a role the person
 // actually holds.
 
+// The current EIP editors, per EIP-1 "EIP Editors" (ethereum/EIPs). Kept to the
+// standing roster, not emeritus editors (axic, Pandapip1, gcolvin, …) or
+// breakout-call leads, so the Editor badge means someone who actually merges
+// proposals today. xinbenlv also serves as the ERC editor.
 export const CANONICAL_EIP_EDITORS = [
   "lightclient",
   "SamWilsn",
   "xinbenlv",
   "g11tech",
   "jochem-brouwer",
-  "axic",
-  "Pandapip1",
-  "gcolvin",
-  "nconsigny",
-  "yoavw",
-  "CarlBeek",
-  "adietrichs",
 ] as const;
 
 export const CANONICAL_EIP_REVIEWERS = [
