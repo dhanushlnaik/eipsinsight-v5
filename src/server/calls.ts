@@ -1,6 +1,6 @@
 import { query } from "@/lib/db";
 import { cachedOr } from "@/lib/cache";
-import { callDisplayName } from "@/data/call-series";
+import { CALL_SERIES, callDisplayName, callSeriesLabel, callSeriesShort, isOneOffSeries, type CallSeriesMeta } from "@/data/call-series";
 
 export interface CallSummary {
   series: string;
@@ -11,6 +11,8 @@ export interface CallSummary {
   hasTldr: boolean;
   hasTranscript: boolean;
   decisions: number;
+  /** The first decision of the call, as a one-line headline. */
+  headline: string | null;
   title: string;
 }
 
@@ -87,7 +89,8 @@ type Row = {
 };
 
 function toSummary(r: Row): CallSummary {
-  const decisions = Array.isArray(r.tldr?.decisions) ? (r.tldr!.decisions as unknown[]).length : 0;
+  const dec = Array.isArray(r.tldr?.decisions) ? (r.tldr!.decisions as Record<string, unknown>[]) : [];
+  const headline = str(dec[0]?.decision) ?? str(r.tldr?.summary);
   return {
     series: r.series,
     number: r.call_number,
@@ -96,7 +99,8 @@ function toSummary(r: Row): CallSummary {
     videoUrl: r.video_url,
     hasTldr: Boolean(r.has_tldr),
     hasTranscript: Boolean(r.has_transcript),
-    decisions,
+    decisions: dec.length,
+    headline,
     title: callDisplayName({ series: r.series, call_number: r.call_number, display_name: r.display_name }),
   };
 }
@@ -112,13 +116,84 @@ export const getCalls = cachedOr<CallSummary[]>(
     );
     return rows.map(toSummary);
   },
-  ["v5-calls"],
+  // Bump the key suffix when CallSummary's shape changes, so a warm cache from an
+  // older shape (e.g. before `headline`) is invalidated instead of served stale.
+  ["v5-calls-2"],
   [],
 );
 
 /** The most recent calls, for the home page or a rail. */
 export async function getRecentCalls(limit = 6): Promise<CallSummary[]> {
   return (await getCalls()).slice(0, limit);
+}
+
+export interface SeriesOverview {
+  series: string;
+  label: string;
+  short: string;
+  group: CallSeriesMeta["group"];
+  count: number;
+  firstDate: string | null;
+  lastDate: string | null;
+  /** Median days between consecutive calls, or null when there is only one. */
+  cadenceDays: number | null;
+  /** The most recent call in the series. */
+  latest: CallSummary | null;
+}
+
+function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.abs(Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000));
+}
+
+const GROUP_ORDER: CallSeriesMeta["group"][] = ["core", "breakout", "process", "other"];
+
+/** Every series, with cadence and its latest call — the browse-by-series view. */
+export async function getCallSeriesOverview(): Promise<SeriesOverview[]> {
+  const calls = await getCalls();
+  const bySeries = new Map<string, CallSummary[]>();
+  for (const c of calls) {
+    const arr = bySeries.get(c.series) ?? [];
+    arr.push(c);
+    bySeries.set(c.series, arr);
+  }
+
+  const rows: SeriesOverview[] = [];
+  for (const [series, list] of bySeries) {
+    // getCalls() is already sorted newest-first.
+    const dated = list.filter((c) => c.date).map((c) => c.date!) as string[];
+    const gaps: number[] = [];
+    for (let i = 0; i < dated.length - 1; i++) gaps.push(daysBetween(dated[i], dated[i + 1]));
+    const meta = CALL_SERIES[series];
+    rows.push({
+      series,
+      label: callSeriesLabel(series),
+      short: callSeriesShort(series),
+      group: isOneOffSeries(series) ? "other" : meta?.group ?? "other",
+      count: list.length,
+      firstDate: dated.length ? dated[dated.length - 1] : null,
+      lastDate: dated.length ? dated[0] : null,
+      cadenceDays: median(gaps),
+      latest: list[0] ?? null,
+    });
+  }
+
+  return rows.sort((a, b) => {
+    const g = GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group);
+    if (g !== 0) return g;
+    return (b.lastDate ?? "").localeCompare(a.lastDate ?? "");
+  });
+}
+
+/** All calls in one series, newest first. */
+export async function getSeriesCalls(series: string): Promise<CallSummary[]> {
+  return (await getCalls()).filter((c) => c.series === series);
 }
 
 export function getCall(series: string, number: string): Promise<CallDetail | null> {
