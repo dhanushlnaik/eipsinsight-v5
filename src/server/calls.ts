@@ -73,6 +73,17 @@ export interface TranscriptCue {
   text: string;
 }
 
+export interface ChatMessage {
+  time: string | null;
+  author: string | null;
+  text: string;
+}
+
+export interface CallArtifacts {
+  transcript: TranscriptCue[] | null;
+  chat: ChatMessage[] | null;
+}
+
 export interface CallDetail {
   series: string;
   number: string | null;
@@ -90,8 +101,8 @@ export interface CallDetail {
   eipsDiscussed: number[];
   eipMentions: CallEipMention[];
   agenda: AgendaItem[];
-  transcript: TranscriptCue[] | null;
   hasTranscript: boolean;
+  hasChat: boolean;
 }
 
 /** Tidy a raw agenda snippet: drop markdown noise, URLs and GitHub refs. */
@@ -197,10 +208,10 @@ type Row = {
   video_url: string | null;
   has_tldr: boolean | null;
   has_transcript: boolean | null;
+  has_chat: boolean | null;
   issue_number: number | null;
   tldr: Record<string, unknown> | null;
   key_decisions: Record<string, unknown> | null;
-  transcript_vtt: string | null;
 };
 
 function toSummary(r: Row): CallSummary {
@@ -316,7 +327,7 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
     async () => {
       const rows = await query<Row>(
         `SELECT series, call_number, display_name, occurred_on, video_url,
-                has_tldr, has_transcript, issue_number, tldr, key_decisions, transcript_vtt
+                has_tldr, has_transcript, has_chat, issue_number, tldr, key_decisions
          FROM protocol_calls
          WHERE series = $1 AND call_number = $2
          LIMIT 1`,
@@ -436,12 +447,104 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
         eipsDiscussed,
         eipMentions,
         agenda,
-        transcript: parseVtt(r.transcript_vtt),
         hasTranscript: Boolean(r.has_transcript),
+        hasChat: Boolean(r.has_chat),
       };
     },
     ["v5-call-4", series, number],
     null,
+  )();
+}
+
+// ── Call artifacts (transcript + chat) from the ethereum/pm ACDbot archive ──
+const ARTIFACTS_BASE = "https://raw.githubusercontent.com/ethereum/pm/master/.github/ACDbot/artifacts";
+
+/** Series slug → the artifact directory name used in the ACDbot archive. */
+function remoteSeries(series: string): string {
+  const map: Record<string, string> = {
+    acdtcl: "acdt", price: "glamsterdamrepricings", tli: "trustlesslogindex",
+    pqts: "pqtransactionsignatures", rpc: "rpcstandards", etm: "encryptthemempool",
+    awd: "allwalletdevs", pqi: "pqinterop", aa: "nativeaa", p2p: "p2pnetworking",
+    ssz: "sszengineapi",
+  };
+  if (series.startsWith("one-off-")) return series.slice(8);
+  return map[series] ?? series;
+}
+
+async function fetchArtifact(series: string, callId: string, files: string[]): Promise<string | null> {
+  const dir = remoteSeries(series);
+  for (const file of files) {
+    try {
+      const res = await fetch(`${ARTIFACTS_BASE}/${dir}/${callId}/${file}`, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim()) return text;
+      }
+    } catch { /* try the next filename */ }
+  }
+  return null;
+}
+
+/** Parse a Zoom-style chat export into timestamped, author-tagged messages. */
+function parseChat(raw: string): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  const tsRe = /^(\d{1,2}:\d{2}:\d{2})/;
+  const fromRe = /From\s+(.+?)(?:\s+to\s+[^:]+)?\s*:\s*(.*)$/i;
+  const authorRe = /^(?:\d{1,2}:\d{2}:\d{2})?[\s\t]*(.+?):\s*(.*)$/;
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.replace(/\t/g, " ").trim();
+    if (!line) continue;
+    const ts = line.match(tsRe);
+    const time = ts ? ts[1].padStart(8, "0") : null;
+    if (ts || fromRe.test(line)) {
+      const rest = ts ? line.slice(ts[0].length).trim() : line;
+      const from = rest.match(fromRe);
+      if (from) { messages.push({ time, author: from[1].trim(), text: from[2].trim() }); continue; }
+      const auth = rest.match(authorRe);
+      if (auth && auth[1] && auth[1].length < 60) { messages.push({ time, author: auth[1].trim(), text: auth[2].trim() }); continue; }
+      messages.push({ time, author: null, text: rest });
+    } else if (messages.length > 0) {
+      messages[messages.length - 1].text += ` ${line}`;
+    } else {
+      messages.push({ time: null, author: null, text: line });
+    }
+  }
+  return messages.filter((m) => m.text);
+}
+
+/**
+ * Transcript + chat for a call, read from its inline column when present and
+ * otherwise fetched from the ACDbot archive. Cached for an hour and never
+ * cached on failure, so a transient archive hiccup just retries next request.
+ */
+export function getCallArtifacts(series: string, number: string): Promise<CallArtifacts> {
+  return cachedOr<CallArtifacts>(
+    async () => {
+      const rows = await query<{ call_id: string | null; transcript_vtt: string | null; has_transcript: boolean | null; has_chat: boolean | null }>(
+        `SELECT call_id, transcript_vtt, has_transcript, has_chat FROM protocol_calls WHERE series = $1 AND call_number = $2 LIMIT 1`,
+        [series, number],
+      );
+      const r = rows[0];
+      if (!r) return { transcript: null, chat: null };
+
+      const callId = r.call_id;
+      const [transcriptRaw, chatRaw] = await Promise.all([
+        r.transcript_vtt?.trim()
+          ? Promise.resolve(r.transcript_vtt)
+          : r.has_transcript && callId
+            ? fetchArtifact(series, callId, series === "acdtcl" ? ["transcript_cl.vtt"] : ["transcript_corrected.vtt", "transcript.vtt"])
+            : Promise.resolve(null),
+        r.has_chat && callId ? fetchArtifact(series, callId, series === "acdtcl" ? ["chat_cl.txt"] : ["chat.txt"]) : Promise.resolve(null),
+      ]);
+
+      return {
+        transcript: parseVtt(transcriptRaw),
+        chat: chatRaw ? (parseChat(chatRaw).length ? parseChat(chatRaw) : null) : null,
+      };
+    },
+    ["v5-call-artifacts-1", series, number],
+    { transcript: null, chat: null },
+    3600,
   )();
 }
 

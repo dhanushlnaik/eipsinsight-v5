@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
-import { getCall } from "@/server/calls";
+import { getCall, getCallArtifacts } from "@/server/calls";
 import { CallWorkspace } from "@/components/call-workspace";
 import { callSeriesLabel, callSeriesShort } from "@/data/call-series";
 import { fmtDate } from "@/lib/format";
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ series: s
   const bits = [
     c.decisions.length > 0 ? `${c.decisions.length} decisions` : null,
     c.highlights.length > 0 ? "highlights" : null,
-    c.transcript ? "transcript" : null,
+    c.hasTranscript ? "transcript" : null,
     "recording",
   ].filter(Boolean);
   return { title: c.title, description: `Recap of ${c.title}: ${bits.join(", ")}.` };
@@ -32,6 +32,8 @@ export default async function CallPage({ params }: { params: Promise<{ series: s
   const number = decodeURIComponent(rawNumber);
   const c = await getCall(series, number);
   if (!c) notFound();
+  // Transcript + chat live in the ethereum/pm archive; fetch them alongside.
+  const artifacts = await getCallArtifacts(series, number);
 
   return (
     <main>
@@ -53,7 +55,7 @@ export default async function CallPage({ params }: { params: Promise<{ series: s
       </header>
 
       <div className="wrap pt-10 pb-20">
-        <CallWorkspace call={c} />
+        <CallWorkspace call={c} transcript={artifacts.transcript} chat={artifacts.chat} />
       </div>
     </main>
   );

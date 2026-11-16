@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Clock, ListChecks, Flag, Target, Sparkles, FileText, Youtube, MessageSquare, Boxes, CalendarDays } from "lucide-react";
-import type { CallDetail, CallMoment, LabeledMoment, CallEipMention, AgendaItem } from "@/server/calls";
+import { Clock, ListChecks, Flag, Target, Sparkles, FileText, Youtube, MessageSquare, MessagesSquare, Boxes, CalendarDays } from "lucide-react";
+import type { CallDetail, CallMoment, LabeledMoment, CallEipMention, AgendaItem, TranscriptCue, ChatMessage } from "@/server/calls";
 
 interface YTPlayer {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
@@ -64,9 +64,9 @@ function SectionTitle({ icon: Icon, children, count }: { icon: React.ElementType
   );
 }
 
-type TabKey = "overview" | "eips" | "notes" | "agenda" | "transcript";
+type TabKey = "overview" | "eips" | "notes" | "agenda" | "transcript" | "chat";
 
-export function CallWorkspace({ call }: { call: CallDetail }) {
+export function CallWorkspace({ call, transcript, chat }: { call: CallDetail; transcript: TranscriptCue[] | null; chat: ChatMessage[] | null }) {
   const mount = useRef<HTMLDivElement>(null);
   const player = useRef<YTPlayer | null>(null);
   const [now, setNow] = useState(0);
@@ -124,11 +124,11 @@ export function CallWorkspace({ call }: { call: CallDetail }) {
   const isActive = (s: number | null) => s != null && s === activeSec;
 
   const activeCue = useMemo(() => {
-    if (!embed || now <= 0 || !call.transcript) return null;
+    if (!embed || now <= 0 || !transcript) return null;
     let a: number | null = null;
-    for (const c of call.transcript) { if (c.seconds <= now + 1) a = c.seconds; else break; }
+    for (const c of transcript) { if (c.seconds <= now + 1) a = c.seconds; else break; }
     return a;
-  }, [call.transcript, now, embed]);
+  }, [transcript, now, embed]);
 
   const linkAt = (seconds: number | null) => {
     if (!call.videoUrl) return null;
@@ -145,9 +145,10 @@ export function CallWorkspace({ call }: { call: CallDetail }) {
     if (call.eipMentions.length) t.push({ key: "eips", label: "By EIP", icon: Boxes, n: call.eipMentions.length });
     if (call.highlights.length || call.actionItems.length) t.push({ key: "notes", label: "Notes", icon: Sparkles });
     if (call.agenda.length) t.push({ key: "agenda", label: "Agenda", icon: CalendarDays, n: call.agenda.length });
-    if (call.transcript?.length) t.push({ key: "transcript", label: "Transcript", icon: FileText });
+    if (transcript?.length) t.push({ key: "transcript", label: "Transcript", icon: FileText });
+    if (chat?.length) t.push({ key: "chat", label: "Chat", icon: MessagesSquare, n: chat.length });
     return t;
-  }, [call]);
+  }, [call, transcript, chat]);
   const [tab, setTab] = useState<TabKey>("overview");
   const current: TabKey = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key ?? "overview";
 
@@ -304,10 +305,10 @@ export function CallWorkspace({ call }: { call: CallDetail }) {
                 </div>
               )}
 
-              {current === "transcript" && call.transcript && (
+              {current === "transcript" && transcript && (
                 <div className="rounded-lg border border-border">
                   <ul className="max-h-[36rem] divide-y divide-border overflow-y-auto">
-                    {call.transcript.map((c, i) => (
+                    {transcript.map((c, i) => (
                       <li key={i}>
                         <button
                           type="button"
@@ -320,6 +321,23 @@ export function CallWorkspace({ call }: { call: CallDetail }) {
                             <span className="text-ink-muted">{c.text}</span>
                           </span>
                         </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {current === "chat" && chat && (
+                <div>
+                  <p className="mb-4 text-sm text-ink-muted">Live meeting chat, as captured during the call.</p>
+                  <ul className="space-y-3">
+                    {chat.map((m, i) => (
+                      <li key={i} className="flex gap-3">
+                        <span className="w-14 shrink-0 pt-0.5 font-mono text-[0.68rem] text-ink-faint">{m.time ? m.time.replace(/\.\d+$/, "") : ""}</span>
+                        <div className="min-w-0 flex-1">
+                          {m.author && <span className="font-medium text-ink">{m.author}</span>}
+                          <p className="text-[0.9rem] leading-relaxed text-ink-muted">{m.text}</p>
+                        </div>
                       </li>
                     ))}
                   </ul>
