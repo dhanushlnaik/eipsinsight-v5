@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import { cachedOr } from "@/lib/cache";
+import { getAllProposals } from "@/server/proposals";
 import { CALL_SERIES, callDisplayName, callSeriesLabel, callSeriesShort, isOneOffSeries, type CallSeriesMeta } from "@/data/call-series";
 
 export interface CallSummary {
@@ -40,6 +41,31 @@ export interface HighlightTopic {
   items: CallMoment[];
 }
 
+/** One timestamped moment that referenced a proposal, tagged by where it came from. */
+export interface LabeledMoment extends CallMoment {
+  label: string;
+}
+
+/** A proposal named on a call, with every moment it came up. */
+export interface CallEipMention {
+  number: number;
+  kind: "eip" | "erc" | "rip";
+  title: string | null;
+  onAgenda: boolean;
+  discussed: boolean;
+  moments: LabeledMoment[];
+}
+
+/** An item from the call's published agenda. */
+export interface AgendaItem {
+  number: number;
+  kind: "eip" | "erc" | "rip";
+  title: string | null;
+  mentionedBy: string | null;
+  snippet: string | null;
+  url: string | null;
+}
+
 export interface TranscriptCue {
   seconds: number;
   stamp: string;
@@ -62,8 +88,33 @@ export interface CallDetail {
   highlights: HighlightTopic[];
   decisionRefs: CallDecisionRef[];
   eipsDiscussed: number[];
+  eipMentions: CallEipMention[];
+  agenda: AgendaItem[];
   transcript: TranscriptCue[] | null;
   hasTranscript: boolean;
+}
+
+/** Tidy a raw agenda snippet: drop markdown noise, URLs and GitHub refs. */
+function cleanSnippet(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[#*`>]+/g, " ")
+    .replace(/issues?\/\d+#?\S*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s.length > 2 ? s : null;
+}
+
+/** Pull "EIP-1234" / "ERC 20" / "RIP-7212" references out of free text. */
+function extractRefs(text: string): { kind: "eip" | "erc" | "rip"; number: number }[] {
+  const out: { kind: "eip" | "erc" | "rip"; number: number }[] = [];
+  const re = /\b(EIP|ERC|RIP)[-\s]?(\d{1,5})\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    out.push({ kind: m[1].toLowerCase() as "eip" | "erc" | "rip", number: Number(m[2]) });
+  }
+  return out;
 }
 
 /** Extract an 11-char YouTube id from the common URL shapes. */
@@ -312,6 +363,62 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
 
       const eipsDiscussed = [...new Set(decisionRefs.flatMap((d) => d.eips))].sort((a, b) => a - b);
 
+      // ── By-EIP index: every moment that named a proposal, grouped by it ──
+      // Title + canonical kind come from our own proposals data ("better data").
+      const [proposals, agendaRows] = await Promise.all([
+        getAllProposals(),
+        query<{ eip_number: number; mentioned_by: string | null; snippet: string | null; source_url: string | null }>(
+          `SELECT eip_number, mentioned_by, snippet, source_url
+           FROM pm_agenda_eips WHERE series = $1 AND call_number = $2
+           ORDER BY eip_number`,
+          [series, number],
+        ).catch(() => []),
+      ]);
+      const byNumber = new Map<number, { title: string; kind: "eip" | "erc" | "rip" }>();
+      for (const p of proposals) if (!byNumber.has(p.number)) byNumber.set(p.number, { title: p.title, kind: p.kind as "eip" | "erc" | "rip" });
+      const lookup = (num: number, hinted: "eip" | "erc" | "rip") => {
+        const hit = byNumber.get(num);
+        return { title: hit?.title ?? null, kind: hit?.kind ?? hinted };
+      };
+
+      const labeled: LabeledMoment[] = [
+        ...decisions.map((d) => ({ ...d, label: "Decision" })),
+        ...highlights.flatMap((h) => h.items.map((it) => ({ ...it, label: h.topic }))),
+        ...actionItems.map((a) => ({ text: a.text, seconds: a.seconds, stamp: a.stamp, label: "Action" })),
+        ...targets.map((g) => ({ ...g, label: "Target" })),
+      ];
+      const mentions = new Map<number, CallEipMention>();
+      const touch = (num: number, hinted: "eip" | "erc" | "rip") => {
+        if (!mentions.has(num)) {
+          const { title, kind } = lookup(num, hinted);
+          mentions.set(num, { number: num, kind, title, onAgenda: false, discussed: false, moments: [] });
+        }
+        return mentions.get(num)!;
+      };
+      for (const mo of labeled) {
+        for (const ref of extractRefs(mo.text)) {
+          const e = touch(ref.number, ref.kind);
+          e.moments.push(mo);
+          if (mo.label === "Decision") e.discussed = true;
+        }
+      }
+      for (const n of eipsDiscussed) touch(n, "eip").discussed = true;
+
+      const agendaByEip = new Map<number, { mentioned_by: string | null; snippet: string | null; source_url: string | null }>();
+      for (const a of agendaRows) {
+        touch(a.eip_number, "eip").onAgenda = true;
+        if (!agendaByEip.has(a.eip_number)) agendaByEip.set(a.eip_number, a);
+      }
+
+      const eipMentions = [...mentions.values()]
+        .map((e) => ({ ...e, discussed: e.discussed || e.moments.length >= 2 }))
+        .sort((a, b) => Number(b.discussed) - Number(a.discussed) || b.moments.length - a.moments.length || a.number - b.number);
+
+      const agenda: AgendaItem[] = [...agendaByEip.entries()].map(([num, a]) => {
+        const { title, kind } = lookup(num, "eip");
+        return { number: num, kind, title, mentionedBy: a.mentioned_by, snippet: cleanSnippet(a.snippet), url: a.source_url };
+      }).sort((a, b) => a.number - b.number);
+
       return {
         series: r.series,
         number: r.call_number,
@@ -327,11 +434,13 @@ export function getCall(series: string, number: string): Promise<CallDetail | nu
         highlights,
         decisionRefs,
         eipsDiscussed,
+        eipMentions,
+        agenda,
         transcript: parseVtt(r.transcript_vtt),
         hasTranscript: Boolean(r.has_transcript),
       };
     },
-    ["v5-call-2", series, number],
+    ["v5-call-4", series, number],
     null,
   )();
 }
