@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import { isCanonicalEditor, isCanonicalReviewer } from "@/data/eip-editors";
 
 export interface AuthoredProposal {
   kind: "eip" | "erc" | "rip";
@@ -196,6 +197,15 @@ export async function getContributor(actor: string): Promise<Contributor | null>
   // No scores row AND no activity AND nothing authored or opened: not a real profile.
   if (!s?.total_score && roles.length === 0 && authored.length === 0 && opened === 0) return null;
 
+  // The scheduler tags per-activity roles heuristically and over-reports EDITOR
+  // (and REVIEWER) for very active triagers. Only surface those standing badges
+  // when the actor is on the governance-maintained roster.
+  const visibleRoles = roles.filter((r) => {
+    if (r.role === "EDITOR") return isCanonicalEditor(actor);
+    if (r.role === "REVIEWER") return isCanonicalReviewer(actor);
+    return true;
+  });
+
   return {
     actor,
     totalScore: Number(s?.total_score ?? 0),
@@ -206,7 +216,7 @@ export async function getContributor(actor: string): Promise<Contributor | null>
     comments: Number(s?.comments_count ?? 0),
     firstActivity: s?.first_activity ? String(s.first_activity) : null,
     lastActivity: s?.last_activity ? String(s.last_activity) : null,
-    roles,
+    roles: visibleRoles,
     authored,
     pullRequests,
     reviewsList,
