@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, ArrowRight, FileText, Boxes, Users, GitPullRequest } from "lucide-react";
+import { Search, Loader2, ArrowRight, FileText, Boxes, Users, GitPullRequest, Radio } from "lucide-react";
 import { POPULAR } from "@/components/hit-row";
 import { ResultGroups, groupHits } from "@/components/result-groups";
 import { useSearch } from "@/lib/use-search";
@@ -12,6 +12,7 @@ const JUMP = [
   { href: "/proposals", label: "Browse proposals", icon: FileText },
   { href: "/upgrades", label: "Network upgrades", icon: Boxes },
   { href: "/people", label: "Contributors", icon: Users },
+  { href: "/calls", label: "Protocol calls", icon: Radio },
   { href: "/queue", label: "Editorial queue", icon: GitPullRequest },
 ];
 

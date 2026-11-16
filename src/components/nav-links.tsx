@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, FileText, Boxes, Users, Search } from "lucide-react";
+import { Home, FileText, Boxes, Users, Search, Radio } from "lucide-react";
 
 const NAV = [
   { href: "/proposals", label: "Proposals", icon: FileText, match: ["/proposals", "/eip", "/erc", "/rip"] },
@@ -13,6 +13,7 @@ const NAV = [
 // Shown in the desktop header only: the phone tab bar has room for four destinations and search.
 const DESKTOP_NAV = [
   ...NAV,
+  { href: "/calls", label: "Calls", icon: Radio, match: ["/calls"] },
   { href: "/queue", label: "Queue", icon: FileText, match: ["/queue", "/pr", "/issue"] },
 ];
 
