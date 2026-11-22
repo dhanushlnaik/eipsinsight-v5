@@ -157,7 +157,10 @@ Rules of use:
    index number, serif title, optional description and action).
 5. **Footer** (`SiteFooter`): opens with an ink rule, three columns, a mono colophon.
 6. **Phone tab bar** (`TabBar`): fixed to the bottom below `sm` with Home, Proposals,
-   Upgrades, People, Search. The footer pads itself so the bar never covers it.
+   Upgrades, Contributors, Search. The footer pads itself so the bar never covers it.
+   The desktop nav carries one more destination (Calls) that the phone bar has no room
+   for. Search lives in exactly one place per width: the header field from `sm`, the tab
+   bar below it, and in the `sm` to `md` gap the header shows a search icon instead.
 
 ### The home page
 
@@ -262,7 +265,83 @@ focus), and the idle search placeholder. Nothing else may.
 - Explain jargon where it appears: status and bucket meanings live in `src/lib/meanings.ts`
   and surface through badges and section descriptions.
 
-## 8. Adding a page
+## 8. Calls
+
+Protocol calls are their own area, three levels deep, so a reader can enter at any altitude.
+
+- **Index** (`/calls`): the newest recaps first, each leading with its headline decision,
+  then every series as a card grouped into All Core Devs, Breakouts, and Governance
+  process. This turns 247 meetings into about two dozen entry points. A card carries the
+  cadence ("meets biweekly"), when it last met, the call count, and the latest decision, so
+  the choice is informed before the click. Series labels and groups live in
+  `src/data/call-series.ts`.
+- **Series** (`/calls/[series]`): a timeline of that one series, newest first, each call
+  leading with its headline decision and a decision count.
+- **Call** (`/calls/[series]/[number]`): a two-column workspace. On `lg` the left column is
+  sticky (the embedded player and the contents rail); the right column is one continuous
+  recap.
+
+### The call workspace (`call-workspace.tsx`)
+
+- **No tabs.** The call reads top to bottom as one recap. Six tabs fragmented it; a single
+  scroll with a jump list reads better.
+- **Contents rail** ("On this call"): a quiet left-ruled list of the sections present, each
+  with its count. It is the navigation. A click jumps to a section; a scroll-spy gives the
+  section nearest the top a brand spine and ink text. Hidden below `lg`, where the sections
+  simply stack.
+- **The player drives.** The recording is a YouTube embed through the IFrame API, so the
+  page can seek it. When the video is embeddable, every timestamp seeks it in place rather
+  than opening a new tab, and the moment currently playing is washed in `--brand-soft` as
+  the video runs. Only without an embed do timestamps fall back to a `?t=` deep link.
+- **Sections, in reading order, each shown only when it has content:** TL;DR, Decisions,
+  By EIP, Highlights (grouped by topic), Action items, Targets, Agenda, Transcript, Chat.
+- **By EIP** is the view worth coming for: every proposal named on the call, and under it
+  each moment it came up, labelled by where it came from, timestamped and seekable. Each
+  EIP carries our own title and links to its proposal page, which an outside tracker cannot
+  offer.
+- **Agenda** reads `pm_agenda_eips`: the proposals scheduled, who raised each, and a tidied
+  snippet.
+- **Transcript and Chat** sit inside the flow as bounded scroll boxes, so a thousand-line
+  transcript or chat never runs away with the page. Transcript lines are seekable and
+  follow playback.
+
+The server for all of this is `src/server/calls.ts`.
+
+## 9. Contributors
+
+- The section is named **Contributors** (the route stays `/people`).
+- **Avatars fall back.** `contributor_scores.actor` mixes GitHub handles with git author
+  names, so an avatar validates the handle and otherwise draws initials (`Avatar`,
+  `avatar.tsx`). The same fallback covers every face on the site.
+- **Rank by score, never lead with it.** A contribution score means little to a reader who
+  does not know its formula, so the leaderboard and the profile headline the real counts
+  (reviews, comments, pull requests, commits) and show the score small and muted, with a
+  tooltip saying it is a weighted roll-up of that activity.
+- **Roles are standing, not per-activity.** The scheduler tags activity rows with a role
+  heuristically and over-reports editorship. The Editor and Reviewer badges are therefore
+  gated on a governance roster in `src/data/eip-editors.ts`, the current EIP editors named
+  in EIP-1 (not emeritus editors, not breakout leads). Author and Contributor stay derived
+  from activity.
+
+## 10. Data, caching and freshness
+
+The experience depends on data being both fresh and resilient, so two rules hold across
+every server module.
+
+- **Never cache a failure.** Every read is wrapped in `cachedOr` (`src/lib/cache.ts`): it
+  caches a success for 300s and, on a throw, returns the fallback for that one request and
+  retries on the next. A database blip shows stale or empty data for a moment, never for
+  five minutes.
+- **Version a cache key when its shape changes.** A cached value outlives a deploy, so when
+  its fields change, bump the key suffix (`v5-calls`, then `v5-calls-2`) to retire the old
+  shape instead of serving it.
+
+Reads go through a read-only `pg` pool (`query()` in `src/lib/db.ts`); pages are server
+components with `revalidate = 300`. Some data is not in the database: a call's transcript
+and chat are fetched from the ethereum/pm ACDbot archive, bounded to an 8s timeout, cached
+for an hour and never on failure (`getCallArtifacts`).
+
+## 11. Adding a page
 
 1. Start with a masthead (`PageHead`, or the entity pattern) inside the shared layout. Do
    not render your own header or footer.
