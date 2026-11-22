@@ -75,7 +75,7 @@ export default async function CallsPage() {
       <PageHead
         eyebrow="Core-dev governance"
         title="Protocol calls"
-        lead={`AllCoreDevs and breakout calls, recapped. ${totalCalls.toLocaleString()} meetings across ${overview.length} series — browse by working group, or catch the latest decisions below.`}
+        lead={`AllCoreDevs and breakout calls, recapped. ${totalCalls.toLocaleString()} meetings across ${overview.length} series. Browse by working group, or catch the latest decisions below.`}
       />
 
       <div className="wrap space-y-16 pt-12 pb-20">

@@ -280,7 +280,7 @@ function daysBetween(a: string, b: string): number {
 
 const GROUP_ORDER: CallSeriesMeta["group"][] = ["core", "breakout", "process", "other"];
 
-/** Every series, with cadence and its latest call — the browse-by-series view. */
+/** Every series, with cadence and its latest call: the browse-by-series view. */
 export async function getCallSeriesOverview(): Promise<SeriesOverview[]> {
   const calls = await getCalls();
   const bySeries = new Map<string, CallSummary[]>();

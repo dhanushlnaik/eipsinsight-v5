@@ -11,10 +11,10 @@ export interface CallSeriesMeta {
 }
 
 export const CALL_SERIES: Record<string, CallSeriesMeta> = {
-  acde: { label: "AllCoreDevs — Execution", short: "ACDE", group: "core" },
-  acdc: { label: "AllCoreDevs — Consensus", short: "ACDC", group: "core" },
-  acdt: { label: "AllCoreDevs — Testing", short: "ACDT", group: "core" },
-  acdtcl: { label: "AllCoreDevs — Testing CL Breakout", short: "ACDT-CL", group: "core" },
+  acde: { label: "AllCoreDevs - Execution", short: "ACDE", group: "core" },
+  acdc: { label: "AllCoreDevs - Consensus", short: "ACDC", group: "core" },
+  acdt: { label: "AllCoreDevs - Testing", short: "ACDT", group: "core" },
+  acdtcl: { label: "AllCoreDevs - Testing CL Breakout", short: "ACDT-CL", group: "core" },
   epbs: { label: "ePBS Breakout", short: "ePBS", group: "breakout" },
   bal: { label: "BAL Breakout", short: "BAL", group: "breakout" },
   focil: { label: "FOCIL Breakout", short: "FOCIL", group: "breakout" },
@@ -49,7 +49,7 @@ export function callSeriesShort(series: string): string {
   return CALL_SERIES[series]?.short ?? series.toUpperCase();
 }
 
-/** "AllCoreDevs — Execution #175", or the stored one-off name. */
+/** "AllCoreDevs - Execution #175", or the stored one-off name. */
 export function callDisplayName(call: {
   series: string;
   call_number: string | null;

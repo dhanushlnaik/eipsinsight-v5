@@ -136,7 +136,7 @@ export function CallWorkspace({ call, transcript, chat }: { call: CallDetail; tr
   };
   const hrefFor = (seconds: number | null) => (embed ? null : linkAt(seconds));
 
-  // The sections present, in reading order — drives the contents rail and scroll-spy.
+  // The sections present, in reading order; drives the contents rail and scroll-spy.
   const sections = useMemo(() => {
     const s: { id: string; label: string; n?: number }[] = [];
     if (call.summary) s.push({ id: "tldr", label: "TL;DR" });
@@ -217,7 +217,7 @@ export function CallWorkspace({ call, transcript, chat }: { call: CallDetail; tr
           </div>
         </div>
 
-        {/* Contents rail — a quiet, persistent jump list with scroll-spy. */}
+        {/* Contents rail: a quiet, persistent jump list with scroll-spy. */}
         <nav className="mt-6 hidden border-l border-border lg:block" aria-label="On this call">
           <p className="eyebrow mb-2 pl-4">On this call</p>
           {sections.map((s) => (
